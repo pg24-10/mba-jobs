@@ -107,7 +107,66 @@ agency_words:
   - hiring
   - headhunters
   - executive search
+  # Indian job boards: "<Name> Consultants" and "<Name> HR" are almost always
+  # placement firms (real consulting firms say Consulting / Consultancy).
+  - consultants
+  - hr
+  - hrd
+  - talent partners
+  - search partners
+
+# Known recruitment agencies and talent marketplaces whose names do not say so.
+# Matched on the cleaned company name (start of the name), flagged not dropped.
+agency_names:
+  - Uplers
+  - Michael Page
+  - Randstad
+  - Adecco
+  - ABC Consultants
+  - TeamLease
+  - Quess
+  - Xpheno
+  - Antal International
+  - Kelly Services
+  - Careernet
+  - CIEL HR
+  - TalentART
+  - InnoQuest
+  - Taggd
+  - Robert Half
+  - Hays
+  - Spectrum Talent Management
+  - Ma Foi
+  - Allegis
+  - TEKsystems
+  - Experis
+  - Korn Ferry
+  - Longhouse Consulting
+  - Vahura
+  - Hunt Partners
+  - Hirect
+  - Crescendo Global
+  - Confidential
 
 # LinkedIn "Industries" values that mean an agency.
 agency_industries:
   - Staffing and Recruiting
+
+# Workday and Oracle boards list every job a company has (thousands for some).
+# Only titles with a search phrase (searches.yaml) or one of these words are
+# opened for details; the rest are skipped.
+big_board_title_words:
+  - manager
+  - lead
+  - head
+  - director
+  - associate
+  - analyst
+  - strategy
+  - consultant
+  - planner
+  - specialist
+  - partner
+  - vice president
+  - avp
+  - vp

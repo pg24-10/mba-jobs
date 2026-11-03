@@ -1,6 +1,7 @@
 """Text helpers shared by every source: matching, names, cities, trimming."""
 
 import re
+from functools import lru_cache
 import unicodedata
 
 from .settings import config
@@ -35,6 +36,20 @@ def excluded_by(title):
     return m.group(0) if m else None
 
 
+_big_board = None
+
+
+def big_board_title_ok(title):
+    """Workday / Oracle boards list every job a company has; open only titles that
+    look like the searches (any search phrase, or a word from big_board_title_words)."""
+    global _big_board
+    if _big_board is None:
+        phrases = [p.strip('"') for g in config("searches")["groups"]
+                   for p in re.split(r"\s+OR\s+", g["query"]) if not re.search(r"mba|pgdm", p, re.I)]
+        _big_board = phrase_pattern(phrases + config("filters").get("big_board_title_words", []))
+    return bool(title) and not excluded_by(title) and bool(_big_board.search(fold(title)))
+
+
 _agency = None
 
 
@@ -45,7 +60,15 @@ def looks_like_agency(company, industry=""):
         _agency = phrase_pattern(f["agency_words"])
     if industry and fold(industry) in {fold(i) for i in f.get("agency_industries", [])}:
         return True
+    key = company_key(company)
+    if any(key == n or key.startswith(n + " ") for n in _agency_names()):
+        return True
     return bool(_agency and _agency.search(fold(company)))
+
+
+@lru_cache
+def _agency_names():
+    return tuple(company_key(n) for n in config("filters").get("agency_names", []))
 
 
 def company_key(name):
@@ -84,7 +107,7 @@ _CITY_WORDS = {
     "Bangalore": ["bangalore", "bengaluru", "bangalore urban"],
     "Mumbai": ["mumbai", "navi mumbai", "thane", "bombay"],
     "Delhi NCR": ["delhi", "new delhi", "gurugram", "gurgaon", "noida", "greater noida",
-                  "faridabad", "ghaziabad", "ncr"],
+                  "faridabad", "ghaziabad", "manesar", "ncr"],
     "Hyderabad": ["hyderabad", "secunderabad"],
     "Pune": ["pune", "pimpri", "chinchwad"],
     "Chennai": ["chennai", "madras"],
@@ -105,6 +128,22 @@ def city_of(location):
         return "Remote (India)"
     first = (location or "").split(",")[0].strip()
     return first or None
+
+
+_STATES = phrase_pattern([
+    "india", "karnataka", "maharashtra", "delhi", "haryana", "uttar pradesh", "telangana",
+    "tamil nadu", "west bengal", "gujarat", "rajasthan", "kerala", "andhra pradesh", "punjab",
+    "madhya pradesh", "odisha", "bihar", "assam", "goa", "chandigarh", "jharkhand",
+    "uttarakhand", "himachal pradesh", "chhattisgarh", "jammu and kashmir", "apac", "asia",
+    "ka", "mh", "dl", "hr", "up", "tn", "ts", "tg", "wb", "gj", "rj", "kl", "ap",  # short forms
+])
+
+
+def is_vague(location):
+    """True when a location names no city: '', 'India', 'Karnataka, India', 'APAC'."""
+    first = fold((location or "").split(",")[0])
+    first = re.sub(r"\b(area|region)\b", "", first).strip()
+    return not first or bool(_STATES.fullmatch(first))
 
 
 def work_mode_of(*texts):
@@ -132,18 +171,35 @@ _REQ_HEADINGS = [
 _req = phrase_pattern(_REQ_HEADINGS)
 
 
+_ROLE_HEADINGS = [
+    "about the role", "the role", "role overview", "role summary", "job summary",
+    "position summary", "job purpose", "the opportunity", "your role", "job description",
+    "key responsibilities", "responsibilities", "what you'll do", "what you will do",
+    "what you'll be doing", "what you will be doing", "your responsibilities",
+]
+_role = phrase_pattern(_ROLE_HEADINGS)
+
+
 def trim_requirements(description, limit=None):
-    """Keep the requirements part of a description, up to `limit` characters."""
-    limit = limit or config("settings")["description_chars"]
+    """The part of a description Claude needs: a short "about the role" piece,
+    then the requirements, up to `limit` characters in all. Company intros are
+    skipped when a heading shows where the role starts."""
+    s = config("settings")
+    limit = limit or s["description_chars"]
+    role_limit = min(s.get("role_chars", 1000), limit)
     text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", description or "")).strip()
     if not text:
         return None
     folded = fold(text)
-    m = _req.search(folded)
-    # only trust a heading found after the first few lines of intro
-    if m and m.start() > 80:
-        text = text[m.start():]
-    return text[:limit]
+    role = _role.search(folded)
+    req = _req.search(folded, role.end() if role else 0)
+    start = role.start() if role else 0
+    # only trust a requirements heading found after the first few lines of intro
+    if not req or req.start() <= start + 80:
+        return text[start:start + limit]
+    about = text[start:req.start()].strip()[:role_limit]
+    needs = text[req.start():]
+    return (about + " ... " + needs)[:limit] if about else needs[:limit]
 
 
 _EXP = re.compile(r"(\d{1,2})\s*(?:-|to|–)\s*(\d{1,2})\s*(?:yrs?|years?)", re.I)

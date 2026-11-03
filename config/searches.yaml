@@ -6,6 +6,7 @@
 locations:
   # name: the city label used on the site
   # linkedin / indeed / naukri: the text each site understands
+  # (linkedin may be a list: each one is searched and duplicates merge)
   - name: Bangalore
     linkedin: "Bengaluru, Karnataka, India"
     indeed: "Bengaluru, Karnataka"
@@ -15,7 +16,8 @@ locations:
     indeed: "Mumbai, Maharashtra"
     naukri: "Mumbai"
   - name: Delhi NCR
-    linkedin: "Delhi, India"
+    # "Delhi, India" alone misses Gurugram and Noida (checked Nov 2026), so two searches
+    linkedin: ["Delhi Metropolitan Area", "Noida, Uttar Pradesh, India"]
     indeed: "Delhi"
     naukri: "Delhi NCR"
   - name: Hyderabad

@@ -9,6 +9,7 @@ import html
 import random
 import re
 import time
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -150,7 +151,9 @@ class LinkedIn:
                 body, re.S)
         }
         # externally-applied jobs carry the offsite URL in a hidden <code id="applyUrl">
-        offsite = bool(re.search(r'id="applyUrl"', body))
+        code = re.search(r'<code id="applyUrl"[^>]*>\s*<!--\s*"?(.*?)"?\s*-->', body, re.S)
+        offsite = bool(code) or bool(re.search(r'id="applyUrl"', body))
+        caption = re.search(r'num-applicants__caption[^>]*>(.*?)</', body, re.S)
         return {
             "description": _text(m.group(1).replace("<br>", "\n").replace("</li>", "\n")) if m else "",
             "seniority": criteria.get("Seniority level"),
@@ -158,6 +161,8 @@ class LinkedIn:
             "job_function": criteria.get("Job function"),
             "industry": criteria.get("Industries"),
             "apply_offsite": offsite,
+            "apply_url": company_link(html.unescape(code.group(1))) if code else None,
+            "applicants": applicants_of(_text(caption.group(1)) if caption else ""),
         }
 
     # ---------------------------------------------------------- companies
@@ -182,6 +187,19 @@ class LinkedIn:
         return slug, max(set(ids), key=ids.count)
 
 
+def company_link(url):
+    """LinkedIn wraps offsite links as .../externalApply/...?url=<encoded>; return the inner one."""
+    inner = parse_qs(urlparse(url).query).get("url")
+    return inner[0] if inner and "linkedin.com" in (urlparse(url).hostname or "") else url
+
+
+def applicants_of(caption):
+    """'106 applicants' -> 106, 'Over 200 applicants' -> 200,
+    'Be among the first 25 applicants' -> 25. A snapshot from when we fetched it."""
+    m = re.search(r"([\d,]+)\s+applicant", caption or "", re.I)
+    return int(m.group(1).replace(",", "")) if m else None
+
+
 def to_raw(card, info=None):
     """Card (+ detail) -> the shared raw job shape the pipeline normalizes."""
     info = info or {}
@@ -198,4 +216,6 @@ def to_raw(card, info=None):
         "industry": info.get("industry"),
         "salary_text": card.get("salary"),
         "apply_on_company_site": info.get("apply_offsite") if info else None,
+        "applicants": info.get("applicants"),
+        "apply_url": info.get("apply_url"),
     }

@@ -16,4 +16,5 @@ node_modules/
 .next/
 data/state/
 data/logs/
+data/reports/
 data/inbox/*.json

@@ -67,6 +67,7 @@ def to_raw(job):
     if job.get("otherLocation"):
         locations.append(job["otherLocation"])
     tags = ", ".join(t.get("name") for t in job.get("tags") or [] if t.get("name"))
+    # minSal/maxSal are already lakhs a year (checked 3 Nov 2026: 3-8 yrs -> 15-22); 99 is the top of their scale
     show_salary = not job.get("hideSal") and (job.get("minSal") or job.get("maxSal"))
     posted = job.get("createdTimeMs")
     return {

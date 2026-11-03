@@ -28,17 +28,19 @@ class DB:
             "Content-Type": "application/json",
         })
 
+    WAITS = [5, 15, 30, 60, 120]        # about 4 minutes in all: rides out a Wi-Fi drop
+
     def _send(self, method, url, **kw):
-        """One request, retried up to 3 times on network errors and 5xx."""
-        for attempt in range(3):
+        """One request, retried on network errors and 5xx."""
+        for attempt, wait in enumerate(self.WAITS + [None]):
             try:
                 r = self.s.request(method, url, **kw)
-                if r.status_code < 500 or attempt == 2:
+                if r.status_code < 500 or wait is None:
                     return self._check(r)
             except requests.RequestException:
-                if attempt == 2:
+                if wait is None:
                     raise
-            time.sleep(5 * (attempt + 1))
+            time.sleep(wait)
 
     def _check(self, r):
         if r.status_code >= 400:

@@ -1,5 +1,6 @@
 """Indeed and Naukri through the JobSpy library (public search pages, no login)."""
 
+import logging
 import math
 import re
 
@@ -25,11 +26,34 @@ def _clean(value):
     return text if text and text.lower() not in ("nan", "none", "nat") else None
 
 
+class _Errors(logging.Handler):
+    """JobSpy logs page failures and returns what it has; collect them so a
+    half-finished search is not mistaken for a complete one."""
+
+    def __init__(self):
+        super().__init__(logging.ERROR)
+        self.messages = []
+
+    def emit(self, record):
+        self.messages.append(record.getMessage())
+
+
 def search(source, term, location, hours, results_wanted=1000):
-    """One JobSpy search. Returns raw job dicts in the shared shape."""
+    """One JobSpy search. Returns (raw job dicts in the shared shape, error messages)."""
     from jobspy import scrape_jobs
 
-    df = scrape_jobs(
+    errors = _Errors()
+    logger = logging.getLogger("jobspy")
+    logger.addHandler(errors)
+    try:
+        df = _scrape(scrape_jobs, source, term, location, hours, results_wanted)
+    finally:
+        logger.removeHandler(errors)
+    return [to_raw(source, row) for row in df.to_dict("records")], errors.messages
+
+
+def _scrape(scrape_jobs, source, term, location, hours, results_wanted):
+    return scrape_jobs(
         site_name=[source],
         search_term=term.replace('"', "") if source == "naukri" else term,
         location=location,
@@ -40,10 +64,6 @@ def search(source, term, location, hours, results_wanted=1000):
         description_format="markdown",
         verbose=0,
     )
-    out = []
-    for row in df.to_dict("records"):
-        out.append(to_raw(source, row))
-    return out
 
 
 def to_raw(source, row):
@@ -71,4 +91,5 @@ def to_raw(source, row):
         "experience_max": exp_max,
         "work_mode_hint": "remote" if remote else (get("work_from_home_type") or None),
         "apply_on_company_site": bool(get("job_url_direct")) if source == "indeed" else None,
+        "apply_url": get("job_url_direct") or None,
     }

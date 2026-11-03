@@ -40,14 +40,31 @@ linkedin:
 # Lever asks for at least 1 second between requests.
 ats:
   delay_seconds: 1.0
+  # Workday / Oracle: pages of 20-25 jobs read per company per run (newest first for Oracle)
+  max_pages_big_boards: 25
+  # Company careers sites read through their sitemap + Google Jobs tags (careers_site.py)
+  careers_site:
+    max_sitemaps: 6        # sitemap files read per site per run
+    max_pages: 40          # job pages opened per site per run
 
 # IIMjobs robots.txt asks for 10 seconds between requests. 50 jobs per page.
 iimjobs:
   delay_seconds: 10
   max_pages_per_search: 20
 
+# Indeed and Naukri (JobSpy). Naukri times out or asks for a captcha when pushed,
+# so searches are spaced out, and a search that hit errors is tried once more
+# after a longer wait. After `give_up_after` searches still failing, the source
+# stops for this run (the next run catches up).
+jobspy:
+  delay_seconds: {indeed: 3, naukri: 8}
+  retry_wait_seconds: 60
+  give_up_after: 3
+
 # Longest catch-up window if earlier runs failed.
 max_window_days: 30
 
-# Characters of the requirements section kept for Claude.
-description_chars: 1500
+# Characters of each description kept for Claude (deleted after tagging).
+description_chars: 2500
+# Of those, at most this many from the "about the role" part; the rest is requirements.
+role_chars: 1000

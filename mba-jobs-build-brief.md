@@ -16,7 +16,7 @@ Written: 3 Nov 2026
 **mba-jobs** collects job postings relevant to MBA students from LinkedIn, Indeed, Naukri, company career pages and IIMjobs. It tags each job with Claude and shows them on a fast website with rich filters.
 
 - One name everywhere: repo `pg24-10/mba-jobs`, Supabase project `mba-jobs`, Vercel project `mba-jobs` (site `mba-jobs.vercel.app`, or the closest variant Vercel offers).
-- The site is open to anyone with the link. No login.
+- The site is open to anyone with the link. Signing in is optional and only adds personal features (saved, applied, hidden jobs across devices).
 - Running cost target: Rs 0. Everything uses free tiers. Tagging runs on Pranav's Claude subscription, not the Anthropic API.
 
 ## Decisions already made (do not change without asking)
@@ -31,6 +31,7 @@ Written: 3 Nov 2026
 | Tagging | Claude Code subagent on Haiku 5.5, after a Haiku vs Sonnet accuracy check |
 | Tagging schedule | Claude scheduled tasks at 2:30 PM and 10:00 PM IST |
 | ISB labels | Show a "Past ISB recruiter" tag and filter. Do NOT show "Coming to campus" or any cluster/status info. Keep this as a single on/off setting in config. |
+| Sign-in (changed 3 Nov 2026, Pranav) | Optional. Supabase Auth with Google sign-in and an email sign-in link (sent through Resend's free tier). Browsing never needs an account. Store only the email and the user's own job marks; a user can delete their account. |
 | Content shown | Title, company, location, key facts, Claude's one-line summary, and a link to the original post. Never show full copied job descriptions. |
 
 ## Architecture
@@ -68,10 +69,11 @@ mba-jobs/
   collector/            Python: one module per source + shared pipeline
     sources/linkedin.py
     sources/jobspy_sources.py   (Indeed, Naukri)
-    sources/ats.py              (Greenhouse, Lever, Ashby)
+    sources/ats.py              (Greenhouse, Lever, Ashby, Workday, Oracle)
+    sources/careers_site.py     (own careers sites: sitemap + Google Jobs tags)
     sources/iimjobs.py
     pipeline.py         normalize, filter, dedupe, company tags, save
-    cli.py              commands: backfill, daily, linkedin, coverage
+    cli.py              commands: backfill, daily, linkedin, coverage, learn-boards, isb-coverage
   config/
     searches.yaml       search groups and locations (editable without code)
     filters.yaml        exclude words, matched on whole words
@@ -144,13 +146,19 @@ If a source does not support OR, split that group into single phrases automatica
 - Use `hours_old` for the window. Each search caps at about 1,000 results.
 - Naukri provides an experience range field directly; keep it.
 
-### Company career pages (Greenhouse, Lever, Ashby)
+### Company career pages (Greenhouse, Lever, Ashby, Workday, Oracle, own sites)
 
 - Public, keyless JSON:
   - Greenhouse `https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true`
   - Lever `https://api.lever.co/v0/postings/{slug}?mode=json` (respect a 1 second delay)
   - Ashby `https://api.ashbyhq.com/posting-api/job-board/{name}`
 - One-time discovery: for each company in the lineup and the watch list, find whether it has one of these boards and store the token in the `companies` table. Many will not; that is fine.
+- Added 3 Nov 2026 (Pranav), to cover the 2,500+ past ISB recruiters:
+  - Workday and Oracle Cloud careers pages, through the same public JSON their own pages load. These boards list every job a company has, so only titles that look like the searches (plus `big_board_title_words` in filters.yaml) and jobs in the site's cities are opened.
+  - Learning from apply links: Indeed and LinkedIn jobs often link to the company's own careers page. Every run saves any it recognises for tracked companies (lineup, ISB, watch list). `mba-jobs learn-boards` seeds this from 30 days of Indeed.
+  - Own careers sites: if the apply link is the company's own site, check once whether robots.txt allows us, the sitemap lists job pages, and the pages carry schema.org `JobPosting` tags (the way Google Jobs reads them). If yes, read it every run (`ats_type` "site"); if not, mark "none" and check again after a month.
+  - Skipped: SmartRecruiters (robots.txt disallows everyone except LinkedIn), Eightfold (refuses requests).
+- `mba-jobs isb-coverage`: after the backfill, lists past ISB recruiters with and without jobs on the site, gaps first (lineup companies on top), into `data/reports/isb-coverage.csv` (git-ignored).
 
 ### IIMjobs
 
@@ -232,10 +240,12 @@ If a source does not support OR, split that group into single phrases automatica
   - Past ISB recruiter
   - Industry, company type, startup stage (marked approximate)
   - City (multi-select), work mode
-  - Salary range (LPA) and "salary shown only"
+  - Salary range (LPA) and "salary shown only" (only jobs that list a salary; all sources stored in lakhs a year)
   - Posted within (24 hours / 7 days / 30 days), source, apply on company site vs job board
   - Hide recruitment agencies and reposts, full-time vs contract
-- **Personal features, stored in the browser (localStorage) with try/catch:** save, hide, mark applied, "new since your last visit".
+- **Personal features:** save (bookmark), hide, mark applied, "new since your last visit". Signed out: kept in the browser (localStorage, with try/catch). Signed in: kept in a `user_jobs` table (user_id, job_id, saved / applied / hidden, time) that each user can only read and change for themselves (row-level security `auth.uid() = user_id`); browser marks are copied up on first sign-in.
+- **Sign-in:** a small "Sign in" button (Google, or email link). Account menu with "Delete my account". A short plain privacy note.
+- **Shareable searches:** the current filters and sort live in the page address, so copying the link opens the same results.
 - "Show all" toggle that includes low fit scores. Stale jobs hidden by default.
 - A small "Last updated: <time>" line from the latest successful run.
 - Must work well on a phone. Fast first load. Read-only Supabase key only.
@@ -253,6 +263,8 @@ If a source does not support OR, split that group into single phrases automatica
 | SUPABASE_URL | GitHub Secrets, Mac `.env`, Vercel | All |
 | SUPABASE_SERVICE_KEY (write) | GitHub Secrets, Mac `.env` only | Collector, load-tags |
 | SUPABASE_ANON_KEY (read-only) | Vercel environment variables | Website |
+| Google OAuth client ID and secret | Supabase dashboard (Auth > Providers) only | Sign-in |
+| Resend SMTP key | Supabase dashboard (Auth > SMTP) only | Email sign-in links |
 | GitHub access for the tagging task | Set up with Pranav when creating the scheduled task | Tagging task |
 
 ## Build phases
@@ -272,7 +284,7 @@ If a source does not support OR, split that group into single phrases automatica
 **Phase 2: Backfill**
 - Run ATS discovery for lineup and watch list companies.
 - Give Pranav the exact backfill command and setup (caffeinate, hotspot). He starts it.
-- When done, run the coverage check against the 125 campus roles.
+- When done, run the coverage check against the 125 campus roles, and `mba-jobs isb-coverage` for the past ISB recruiters.
 - **CHECKPOINT:** report total jobs per source, duplicates removed, and the coverage hit rate.
 
 **Phase 3: Tagging**
@@ -287,6 +299,7 @@ If a source does not support OR, split that group into single phrases automatica
 
 **Phase 5: Website**
 - Build the Next.js site, deploy to Vercel as `mba-jobs`, connect the read-only key.
+- Add optional sign-in (Google + email link), the `user_jobs` table, and shareable search links. Pranav creates the Google Cloud OAuth client and the Resend account, with click-by-click steps.
 - **CHECKPOINT:** Pranav reviews on laptop and phone.
 
 **Phase 6: One week of watching**

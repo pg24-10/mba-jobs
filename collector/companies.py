@@ -87,16 +87,20 @@ class IsbMatcher:
         aliases = (config("isb_aliases") or {}).get("aliases") or {}
         self.aliases = {company_key(k): company_key(v) for k, v in aliases.items()}
 
-    @lru_cache(maxsize=20000)
     def match(self, company):
         """True when the company is a past ISB recruiter (confident match only)."""
+        return self.which(company) is not None
+
+    @lru_cache(maxsize=20000)
+    def which(self, company):
+        """The ISB recruiter key this company matches (confident match only), or None."""
         key = company_key(company)
         if not key:
-            return False
+            return None
         if key in self.keyset:
-            return True
+            return key
         if self.aliases.get(key) in self.keyset:
-            return True
+            return self.aliases[key]
         # "amazon development centre" is Amazon: an ISB name that is the first
         # whole word(s) of this company's name, at least 3 letters ("ubs", "dsp").
         words = key.split()
@@ -104,20 +108,20 @@ class IsbMatcher:
             prefix = " ".join(words[:n])
             if prefix in self.keyset and len(prefix) >= 3:
                 self._log(company, prefix, 100, "prefix: accepted")
-                return True
+                return prefix
         # The other way round ("exl" vs ISB "exl service") is often a different
         # company ("jsw paints" vs "jsw group"): log it, do not tag.
         longer = next((k for k in self.keys if k.startswith(key + " ")), None)
         if longer:
             self._log(company, longer, 100, "ISB name is longer: NOT tagged, please check")
-            return False
+            return None
         best = process.extractOne(key, self.keys, scorer=fuzz.ratio)
         if best and best[1] >= self.accept:
             self._log(company, best[0], round(best[1]), "fuzzy: accepted")
-            return True
+            return best[0]
         if best and best[1] >= self.review:
             self._log(company, best[0], round(best[1]), "fuzzy: NOT tagged, please check")
-        return False
+        return None
 
     def _log(self, company, matched, score, note):
         self.to_review[company] = (matched, score, note)
