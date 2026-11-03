@@ -1,0 +1,53 @@
+# Show the "Past ISB recruiter" tag and filter on the website.
+show_past_isb_recruiter: true
+
+# Words removed from company names before matching (e.g. "Novartis Healthcare
+# Pvt. Ltd. India" -> "novartis healthcare").
+company_suffixes:
+  - private limited
+  - pvt ltd
+  - pvt
+  - private
+  - limited
+  - ltd
+  - llp
+  - inc
+  - incorporated
+  - corporation
+  - corp
+  - co
+  - company
+  - plc
+  - gmbh
+  - ag
+  - sa
+  - india
+  - the
+
+# Past ISB recruiter fuzzy match: at or above "accept" is tagged; between
+# "review" and "accept" is logged for you to check, not tagged.
+isb_match:
+  accept: 93
+  review: 85
+
+# LinkedIn pacing (seconds between requests, plus random jitter).
+linkedin:
+  delay_seconds: 2.5
+  min_delay_seconds: 1.5
+  max_pages_per_search: 100     # 10 results per page, LinkedIn stops near 1,000
+  blocks_before_stop: 4
+
+# Lever asks for at least 1 second between requests.
+ats:
+  delay_seconds: 1.0
+
+# IIMjobs robots.txt asks for 10 seconds between requests. 50 jobs per page.
+iimjobs:
+  delay_seconds: 10
+  max_pages_per_search: 20
+
+# Longest catch-up window if earlier runs failed.
+max_window_days: 30
+
+# Characters of the requirements section kept for Claude.
+description_chars: 1500

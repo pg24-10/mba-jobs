@@ -1,0 +1,12 @@
+# Extra "Past ISB recruiter" matches the automatic matcher cannot know.
+# Left: company name as job sites show it. Right: name in ISB_Recruiter_Names.xlsx.
+# Check data/logs/isb_review.csv after a run for candidates to add here.
+aliases:
+  Paytm: One97 Communications
+  Boston Consulting Group: Boston Consulting GroupeSRF
+  BCG: Boston Consulting GroupeSRF
+  EY: Ernst & Young
+  EY India: Ernst & Young
+  EY Global Delivery Services: Ernst & Young
+  EY Parthenon: Ernst & Young
+  Kearney: A. T. Kearney

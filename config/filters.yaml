@@ -1,0 +1,113 @@
+# Exclude filter. A job is dropped if its TITLE contains any of these as a
+# whole word or whole phrase (case does not matter). "intern" does not match
+# "International" or "Internal". Every change is checked against the 125
+# campus roles by tests/test_campus_roles.py: if any campus role would be
+# dropped, the test fails.
+
+exclude_title:
+  # internships and freshers
+  - intern
+  - interns
+  - internship
+  - summer intern
+  - fresher
+  - freshers
+  - apprentice
+  # hands-on engineering and IT
+  - software engineer
+  - software developer
+  - developer
+  - sde
+  - frontend
+  - backend
+  - full stack
+  - fullstack
+  - devops
+  - qa engineer
+  - test engineer
+  - tester
+  - android
+  - ios developer
+  - java
+  - .net
+  - python developer
+  - sap abap
+  - mainframe
+  - network engineer
+  - system administrator
+  - site reliability
+  - firmware
+  - embedded
+  # frontline and support roles
+  - telecaller
+  - tele caller
+  - telesales
+  - bpo
+  - voice process
+  - customer support executive
+  - customer care
+  - call center
+  - receptionist
+  - front office
+  - office assistant
+  - data entry
+  - back office
+  - delivery boy
+  - driver
+  - field executive
+  - field sales executive
+  - sales executive
+  - sales officer
+  - retail associate
+  - store manager
+  - cashier
+  - accountant
+  - accounts executive
+  - accounts assistant
+  - bookkeeper
+  - teacher
+  - tutor
+  - faculty
+  - lecturer
+  - professor
+  - nurse
+  - doctor
+  - pharmacist
+  - physiotherapist
+  - lab technician
+  - technician
+  - electrician
+  - plumber
+  - mechanic
+  - welder
+  - security guard
+  - housekeeping
+  - chef
+  - cook
+  - warehouse
+  - picker
+  - packer
+  - graphic designer
+  - video editor
+  - content writer
+  - copywriter
+
+# Company names that suggest a recruitment agency (flagged, not dropped).
+agency_words:
+  - staffing
+  - recruitment
+  - recruiters
+  - recruiting
+  - placement
+  - placements
+  - manpower
+  - hr services
+  - hr solutions
+  - talent solutions
+  - hiring
+  - headhunters
+  - executive search
+
+# LinkedIn "Industries" values that mean an agency.
+agency_industries:
+  - Staffing and Recruiting

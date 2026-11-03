@@ -1,0 +1,21 @@
+[project]
+name = "mba-jobs"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "python-jobspy==1.4.1",
+  "PyYAML",
+  "RapidFuzz",
+  "openpyxl",
+  "requests",
+  "certifi",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+mba-jobs = "collector.cli:main"
+
+[tool.setuptools]
+packages = ["collector", "collector.sources"]

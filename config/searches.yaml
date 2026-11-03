@@ -1,0 +1,99 @@
+# Search groups and locations. Edit freely; no code changes needed.
+# Each group runs once per location. Phrases in quotes are matched as phrases.
+# A source that does not understand OR gets each phrase as its own search
+# (see supports_or below).
+
+locations:
+  # name: the city label used on the site
+  # linkedin / indeed / naukri: the text each site understands
+  - name: Bangalore
+    linkedin: "Bengaluru, Karnataka, India"
+    indeed: "Bengaluru, Karnataka"
+    naukri: "Bangalore"
+  - name: Mumbai
+    linkedin: "Mumbai, Maharashtra, India"
+    indeed: "Mumbai, Maharashtra"
+    naukri: "Mumbai"
+  - name: Delhi NCR
+    linkedin: "Delhi, India"
+    indeed: "Delhi"
+    naukri: "Delhi NCR"
+  - name: Hyderabad
+    linkedin: "Hyderabad, Telangana, India"
+    indeed: "Hyderabad, Telangana"
+    naukri: "Hyderabad"
+  - name: Pune
+    linkedin: "Pune, Maharashtra, India"
+    indeed: "Pune, Maharashtra"
+    naukri: "Pune"
+  - name: Chennai
+    linkedin: "Chennai, Tamil Nadu, India"
+    indeed: "Chennai, Tamil Nadu"
+    naukri: "Chennai"
+  - name: Kolkata
+    linkedin: "Kolkata, West Bengal, India"
+    indeed: "Kolkata, West Bengal"
+    naukri: "Kolkata"
+  - name: Remote (India)
+    linkedin: "India"
+    linkedin_extra: {f_WT: "2"}   # remote filter (LinkedIn may ignore it; we also check the text)
+    indeed: "Remote"
+    naukri: "Remote"
+
+supports_or:
+  linkedin: true     # verified in Phase 0
+  indeed: false      # split into single phrases until verified
+  naukri: false
+  iimjobs: false     # its search box takes one phrase
+
+groups:
+  - id: product
+    query: '"product manager" OR "associate product manager" OR "product lead" OR "product owner"'
+  - id: program
+    query: '"program manager" OR "programme manager" OR "project manager" OR "program lead"'
+  - id: strategy
+    query: 'strategy OR strategist OR "corporate strategy" OR "strategic initiatives"'
+  - id: chief_of_staff
+    query: '"chief of staff" OR "founder''s office" OR "CEO''s office" OR "MD office" OR "executive assistant to" OR "EA to chairman"'
+  - id: consulting
+    query: 'consultant OR "principal consultant" OR "engagement manager" OR "engagement lead"'
+  - id: transformation
+    query: 'transformation OR "special projects" OR "business excellence"'
+  - id: operations
+    query: '"operations manager" OR "strategy and operations" OR "business operations"'
+  - id: growth
+    query: '"growth manager" OR "growth head" OR "business development manager" OR partnerships'
+  - id: marketing
+    query: '"category manager" OR "category head" OR "brand manager" OR "product marketing" OR "marketing manager"'
+  - id: sales_leadership
+    query: '"zonal manager" OR "regional sales manager" OR "area sales manager" OR "state head" OR "key account manager"'
+  - id: finance
+    query: '"finance manager" OR "finance business partner" OR "FP&A" OR "business finance" OR "corporate finance"'
+  - id: banking
+    query: '"investment banking" OR "equity research" OR "transaction advisory" OR "due diligence" OR deals'
+  - id: investing
+    query: '"private equity" OR "venture capital" OR "investment associate" OR "investor relations"'
+  - id: analytics
+    query: '"business analyst" OR "analytics manager" OR "data science manager" OR "decision science"'
+  - id: general_management
+    query: '"general manager" OR "business head" OR "business unit head" OR "P&L"'
+  - id: leadership_programs
+    query: '"leadership program" OR "leadership programme" OR "leadership associate" OR "future leaders" OR "emerging leaders" OR "management trainee"'
+  - id: ai
+    query: '"AI strategy" OR "AI product" OR "AI transformation" OR presales'
+  - id: wealth
+    query: '"private wealth" OR "client experience" OR "wealth management"'
+  - id: mba
+    query: '"MBA" OR "PGDM"'
+  - id: post_mba
+    query: '"post MBA" OR "MBA graduate"'
+  - id: associate_mba
+    query: 'associate MBA'
+  - id: consultant_mba
+    query: 'consultant MBA'
+  - id: manager_mba
+    query: 'manager MBA'
+  - id: analyst_mba
+    query: 'analyst MBA'
+  - id: director_mba
+    query: 'director MBA'
