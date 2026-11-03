@@ -1,0 +1,16 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Reference spreadsheets stay local until we decide otherwise
+reference/
+
+# Local outputs
+phase0_report.*
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+node_modules/
+.next/

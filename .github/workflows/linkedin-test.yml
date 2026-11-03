@@ -1,0 +1,27 @@
+name: LinkedIn test (Phase 0)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linkedin-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run LinkedIn guest test
+        run: python collector/phase0_linkedin_test.py --machine github
+      - name: Show report on the run page
+        if: always()
+        run: test -f phase0_report.md && cat phase0_report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-report
+          path: phase0_report.*
