@@ -55,7 +55,29 @@ def search(source, term, location, hours, results_wanted=1000):
     return [to_raw(source, row) for row in df.to_dict("records")], errors.messages
 
 
+def _keep_naukri_search_text():
+    """JobSpy drops the description Naukri's search rows already carry (often the
+    whole text, sometimes a short summary); keep it, so few job pages need opening."""
+    from jobspy.naukri import Naukri
+    from jobspy.util import description_fields
+
+    original = Naukri._process_job
+    if getattr(original, "keeps_search_text", False):
+        return
+
+    def process(self, raw):
+        post = original(self, raw)
+        if post is not None and not post.description and raw.get("jobDescription"):
+            text = description_fields(raw["jobDescription"], self.scraper_input.description_format)
+            post = post.model_copy(update={"description": text["description"]})
+        return post
+    process.keeps_search_text = True
+    Naukri._process_job = process
+
+
 def _scrape(scrape_jobs, source, term, location, hours, results_wanted):
+    if source == "naukri":
+        _keep_naukri_search_text()
     return scrape_jobs(
         site_name=[source],
         search_term=term.replace('"', "") if source == "naukri" else term,
@@ -97,6 +119,7 @@ def to_raw(source, row):
         "work_mode_hint": "remote" if remote else (get("work_from_home_type") or None),
         "apply_on_company_site": bool(get("job_url_direct")) if source == "indeed" else None,
         "apply_url": get("job_url_direct") or None,
+        "skills": ", ".join(row["skills"]) if isinstance(row.get("skills"), list) else get("skills"),
     }
 
 

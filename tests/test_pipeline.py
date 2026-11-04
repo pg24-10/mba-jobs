@@ -187,7 +187,29 @@ def test_naukri_block_keeps_pages_opened_so_far(monkeypatch):
     raws = [_naukri(1, "Product Manager"), _naukri(2, "Product Lead"), _naukri(3, "Product Owner")]
     with pytest.raises(pipeline.Blocked) as e:
         pipeline.naukri_details(_KnownDB(), raws, {}, log=lambda *a: None)
-    assert [r["source_id"] for r in e.value.partial] == ["naukri:nk-1"]
+    assert [r["source_id"] for r in e.value.partial] == ["naukri:nk-1", "naukri:nk-2", "naukri:nk-3"]
+    assert [r["description"] for r in e.value.partial] == ["d", None, None]   # 2 and 3 keep their summary
+
+
+def test_naukri_uses_search_text_and_opens_only_short_summaries(monkeypatch):
+    from collector import pipeline
+    opened = []
+
+    class Pages:
+        def __init__(self, delay): pass
+
+        def details(self, job_id):
+            opened.append(job_id)
+            return {"description": "the full text " * 20, "industry": "Fintech"}
+    monkeypatch.setattr(pipeline.jobspy_sources, "NaukriPages", Pages)
+    full, summary = _naukri(1, "Product Manager"), _naukri(2, "Product Manager")
+    full["description"], full["skills"] = "word " * 80, "Pricing, Strategy"
+    summary["description"] = "Lead product for payments."
+    out = pipeline.naukri_details(_KnownDB(), [full, summary], {}, log=lambda *a: None)
+    assert opened == ["2"]                         # 1's search text is already the whole description
+    assert out[0]["description"].endswith("Key skills: Pricing, Strategy")
+    assert out[1]["description"].startswith("the full text")
+    assert "skills" not in out[0]
 
 
 def test_linkedin_block_keeps_details_fetched_so_far(monkeypatch):
@@ -226,3 +248,24 @@ def test_skips_pages_for_jobs_already_described_elsewhere():
     raws = [_naukri(1, "Product Manager"), _naukri(2, "Product Lead"),
             {**_naukri(3, "Product Owner"), "location": "Kochi"}]
     assert pipeline.not_worth_opening(DB(), raws) == {"naukri:nk-1", "naukri:nk-3"}
+
+
+def test_naukri_search_row_keeps_its_description():
+    from jobspy.model import ScraperInput, Site
+    from jobspy.naukri import Naukri
+    from collector.sources import jobspy_sources
+
+    jobspy_sources._keep_naukri_search_text()
+    jobspy_sources._keep_naukri_search_text()                # patching twice is harmless
+    n = Naukri()
+    n.scraper_input = ScraperInput(site_name=[Site.NAUKRI], search_term="x", fetch_description=False,
+                                   description_format="markdown")
+    row = {"jobId": "1", "companyApplyJob": False, "title": "Strategy Manager", "companyName": "Acme",
+           "staticUrl": None, "jdURL": "/job-1", "logoPathV3": None, "createdDate": 1793773751311,
+           "employmentType": "Full Time, Permanent", "tagsAndSkills": "Pricing,Strategy",
+           "placeholders": [{"type": "location", "label": "Mumbai"}, {"type": "salary", "label": "Not disclosed"}],
+           "salaryDetail": {"hideSalary": True, "minimumSalary": 0, "maximumSalary": 0, "currency": "INR"},
+           "jobDescription": "<p>Own <strong>pricing</strong> strategy.</p>"}
+    post = n._process_job(row)
+    assert "pricing" in post.description and "<p>" not in post.description
+    assert post.skills == ["Pricing", "Strategy"]

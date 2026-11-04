@@ -250,29 +250,41 @@ def not_worth_opening(db, raws):
 
 
 def naukri_details(db, raws, pace, log):
-    """Open the Naukri job pages worth opening (new, title looks like the searches),
-    one at a time. The rest keep what the search row gave."""
+    """Naukri search rows already carry a description, often the whole text. Open
+    the job page (one at a time) only for new jobs worth it whose search text is a
+    short summary. Every job's key skills are added to its description for tagging."""
+    short = pace.get("naukri_short_description_words", 60)
     by_id = {}
     for r in raws:
         by_id.setdefault(r["source_id"], r)
     known = db.known_source_ids(i for i, r in by_id.items() if not excluded_by(r["title"]))
-    todo = [i for i, r in by_id.items() if i not in known and big_board_title_ok(r["title"])]
+    todo = [i for i, r in by_id.items() if i not in known and big_board_title_ok(r["title"])
+            and len((r.get("description") or "").split()) < short]
     skip = not_worth_opening(db, [by_id[i] for i in todo])
     todo = [i for i in todo if i not in skip]
-    log(f"  naukri: {len(by_id)} jobs, {len(todo)} new worth opening -> fetching details")
+    log(f"  naukri: {len(by_id)} jobs, {len(todo)} new with only a short summary -> opening those")
     pages = jobspy_sources.NaukriPages(pace.get("naukri_page_delay_seconds", 4))
-    done = [r for i, r in by_id.items() if i not in todo]
     for n, i in enumerate(todo, 1):
         try:
             info = pages.details(i.split("nk-", 1)[-1])
-        except Blocked as e:                                 # keep the pages opened so far
-            e.partial = done + [by_id[j] for j in todo[:n - 1]]
+        except Blocked as e:                                 # keep everything; the rest keep their summary
+            e.partial = [_with_skills(r) for r in by_id.values()]
             raise
         for field, value in (info or {}).items():
-            by_id[i][field] = by_id[i].get(field) or value
+            if field == "description" and len((value or "").split()) > len((by_id[i].get(field) or "").split()):
+                by_id[i][field] = value
+            else:
+                by_id[i][field] = by_id[i].get(field) or value
         if n % 50 == 0:
             log(f"    details: {n}/{len(todo)}")
-    return list(by_id.values())
+    return [_with_skills(r) for r in by_id.values()]
+
+
+def _with_skills(raw):
+    skills = raw.pop("skills", None)
+    if skills and "Key skills:" not in (raw.get("description") or ""):
+        raw["description"] = ((raw.get("description") or "") + f"\n\nKey skills: {skills}").strip()
+    return raw
 
 
 def collect_iimjobs(groups, locations, since, log):
