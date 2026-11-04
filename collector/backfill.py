@@ -22,6 +22,8 @@ ORDER = ["iimjobs", "naukri", "indeed", "linkedin", "ats"]   # quick sources fir
                                                              # pages learned from apply links on the way are read too
 FAILS_IN_A_ROW = 3        # a source failing this many steps with the internet up is blocking us: pause it
 CHECK_EVERY = 60          # seconds between internet checks while offline
+BLOCK_REST = 60 * 60      # a site pushed back (captcha, 429): rest this long, then retry the step
+BLOCK_RETRIES = 3         # ...this many times before pausing the source for the session
 
 
 def steps(sources, groups, locations):
@@ -117,13 +119,20 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
         if source in skip:
             continue
         log(f"\n[{n}/{len(todo)}] {key}")
-        t0 = time.time()
-        for _ in range(3):                            # an internet drop doesn't use up the step
-            summary = run(db, [source], g, locs, since=since, isb=isb, log=log)[source]
-            if summary["status"] in ("success", "pending") or online():
+        t0, rested = time.time(), 0
+        for attempt in range(BLOCK_RETRIES + 1):
+            for _ in range(3):                        # an internet drop doesn't use up the step
+                summary = run(db, [source], g, locs, since=since, isb=isb, log=log)[source]
+                if summary["status"] in ("success", "pending") or online():
+                    break
+                wait_for_internet(log)
+            if summary["status"] != "pending" or attempt == BLOCK_RETRIES:
                 break
-            wait_for_internet(log)
-        took = time.time() - t0
+            log(f"  {source} pushed back; resting {BLOCK_REST // 60} min, then trying this step again "
+                f"({attempt + 1}/{BLOCK_RETRIES})")
+            time.sleep(BLOCK_REST)
+            rested += BLOCK_REST
+        took = time.time() - t0 - rested
         totals["new"] += summary["new"]
 
         fails[source] = 0 if summary["status"] == "success" else fails.get(source, 0) + 1
@@ -142,7 +151,8 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
         save_checkpoint(state)
 
         remaining = [s for s in todo[n:] if s[1] not in skip]
-        log(f"  step took {fmt(took)}; {len(state['done'])}/{len(plan)} steps done; "
+        done = sum(k in state["done"] for k, *_ in plan)
+        log(f"  step took {fmt(took)}; {done}/{len(plan)} steps done; "
             f"about {fmt(eta(state, remaining))} left "
             f"(finish near {datetime.now() + timedelta(seconds=eta(state, remaining)):%a %H:%M})")
 

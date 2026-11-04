@@ -24,9 +24,12 @@ def test_resumes_and_pauses_linkedin(tmp_path, monkeypatch):
         return _run
 
     quiet = lambda *a: None
+    rests = []
+    monkeypatch.setattr(bf.time, "sleep", rests.append)
     monkeypatch.setattr(bf, "run", fake_run(blocked=True))
     assert not bf.backfill(None, ["naukri", "linkedin"], GROUPS, CITIES, log=quiet)
-    assert calls == ["naukri"] * 4 + ["linkedin"]      # LinkedIn stops after one push-back
+    assert calls == ["naukri"] * 4 + ["linkedin"] * 4  # LinkedIn rests and retries 3 times, then pauses
+    assert rests == [bf.BLOCK_REST] * 3
 
     calls.clear()
     monkeypatch.setattr(bf, "run", fake_run(blocked=False))
@@ -91,3 +94,17 @@ def test_checkpoint_keeps_steps_from_another_window(tmp_path, monkeypatch):
     import json
     disk = json.loads((tmp_path / "backfill.json").read_text())
     assert disk["done"] == ["a", "naukri|x|y"] and disk["seconds"] == {"naukri": [60]}
+
+
+def test_rests_after_a_block_and_carries_on(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(bf.time, "sleep", lambda s: None)
+    calls = []
+
+    def _run(db, sources, groups, locations, since, isb, log):
+        calls.append(sources[0])
+        return {sources[0]: {"status": "pending" if len(calls) == 2 else "success", "new": 0}}
+
+    monkeypatch.setattr(bf, "run", _run)
+    assert bf.backfill(None, ["naukri"], GROUPS, CITIES, log=lambda *a: None)
+    assert len(calls) == 5                              # step 2 was tried again after the rest
