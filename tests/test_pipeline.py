@@ -120,5 +120,109 @@ def test_jobspy_retries_then_gives_up(monkeypatch):
     groups = [{"id": "g", "query": "a OR b OR c OR d"}]
     locs = [{"name": "Bangalore", "naukri": "Bangalore"}]
     with pytest.raises(RuntimeError):
-        pipeline.collect_jobspy("naukri", groups, locs, pipeline.now(), log=lambda *a: None)
+        pipeline.collect_jobspy(None, "naukri", groups, locs, pipeline.now(), log=lambda *a: None)
     assert calls == ["a", "a", "b", "b", "c", "c", "d", "d"]   # gives up after 3 failing in a row
+
+
+class _KnownDB:
+    def __init__(self, known=()):
+        self.known = set(known)
+
+    def known_source_ids(self, ids):
+        return self.known & set(ids)
+
+    def described_keys(self, keys):
+        return set()
+
+
+def test_naukri_captcha_on_search_pauses_naukri(monkeypatch):
+    import pytest
+    from collector import pipeline
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
+    monkeypatch.setattr(pipeline.jobspy_sources, "search",
+                        lambda *a: ([], ["response status code 406 (recaptcha required)"]))
+    groups = [{"id": "g", "query": "a OR b"}]
+    locs = [{"name": "Bangalore", "naukri": "Bangalore"}]
+    with pytest.raises(pipeline.Blocked):
+        pipeline.collect_jobspy(None, "naukri", groups, locs, pipeline.now(), log=lambda *a: None)
+
+
+def _naukri(i, title):
+    return {"source": "naukri", "source_id": f"naukri:nk-{i}", "title": title, "company": "Acme",
+            "location": "Bengaluru", "description": None, "industry": None}
+
+
+def test_naukri_opens_only_new_matching_jobs(monkeypatch):
+    from collector import pipeline
+    opened = []
+
+    class Pages:
+        def __init__(self, delay): pass
+
+        def details(self, job_id):
+            opened.append(job_id)
+            return {"description": "about the role", "industry": "Fintech"}
+    monkeypatch.setattr(pipeline.jobspy_sources, "NaukriPages", Pages)
+    raws = [_naukri(1, "Product Manager"), _naukri(2, "Product Manager"),
+            _naukri(3, "Java Developer"), _naukri(1, "Product Manager")]
+    out = pipeline.naukri_details(_KnownDB({"naukri:nk-2"}), raws, {}, log=lambda *a: None)
+    assert opened == ["1"]                        # 2 is already saved, 3 is not an MBA title
+    assert len(out) == 3
+    assert out[0]["description"] == "about the role"
+
+
+def test_naukri_block_keeps_pages_opened_so_far(monkeypatch):
+    import pytest
+    from collector import pipeline
+
+    class Pages:
+        def __init__(self, delay): self.n = 0
+
+        def details(self, job_id):
+            self.n += 1
+            if self.n == 2:
+                raise pipeline.Blocked("captcha")
+            return {"description": "d"}
+    monkeypatch.setattr(pipeline.jobspy_sources, "NaukriPages", Pages)
+    raws = [_naukri(1, "Product Manager"), _naukri(2, "Product Lead"), _naukri(3, "Product Owner")]
+    with pytest.raises(pipeline.Blocked) as e:
+        pipeline.naukri_details(_KnownDB(), raws, {}, log=lambda *a: None)
+    assert [r["source_id"] for r in e.value.partial] == ["naukri:nk-1"]
+
+
+def test_linkedin_block_keeps_details_fetched_so_far(monkeypatch):
+    import pytest
+    from collector import pipeline
+
+    class LI:
+        requests = blocks = 0
+
+        def __init__(self, log): self.n = 0
+
+        def search(self, *a, **k):
+            yield from ({"id": str(i), "title": t, "company": "Acme", "location": "Bengaluru", "posted": None}
+                        for i, t in [(1, "Product Manager"), (2, "Java Developer"), (3, "Product Lead")])
+
+        def detail(self, i):
+            self.n += 1
+            if self.n == 2:
+                raise pipeline.Blocked("429")
+            return {"description": "d"}
+    monkeypatch.setattr(pipeline, "LinkedIn", LI)
+    groups = [{"id": "product", "query": '"product manager"'}]
+    locs = [{"name": "Bangalore", "linkedin": "Bengaluru"}]
+    with pytest.raises(pipeline.Blocked) as e:
+        pipeline.collect_linkedin(_KnownDB(), groups, locs, pipeline.now() - pipeline.timedelta(days=1),
+                                  log=lambda *a: None)
+    assert [r["source_id"] for r in e.value.partial] == ["linkedin:1"]   # 2 not worth opening
+
+
+def test_skips_pages_for_jobs_already_described_elsewhere():
+    from collector import pipeline
+
+    class DB(_KnownDB):
+        def described_keys(self, keys):
+            return {k for k in keys if "product manager" in k}
+    raws = [_naukri(1, "Product Manager"), _naukri(2, "Product Lead"),
+            {**_naukri(3, "Product Owner"), "location": "Kochi"}]
+    assert pipeline.not_worth_opening(DB(), raws) == {"naukri:nk-1", "naukri:nk-3"}

@@ -7,7 +7,10 @@ from the next step. The window start is fixed on the first run, so a restart
 the next night still covers the same 30 days.
 """
 
+import fcntl
 import json
+import os
+import socket
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +20,8 @@ from .settings import STATE, config
 CHECKPOINT = STATE / "backfill.json"
 ORDER = ["iimjobs", "naukri", "indeed", "linkedin", "ats"]   # quick sources first; careers pages last, so
                                                              # pages learned from apply links on the way are read too
+FAILS_IN_A_ROW = 3        # a source failing this many steps with the internet up is blocking us: pause it
+CHECK_EVERY = 60          # seconds between internet checks while offline
 
 
 def steps(sources, groups, locations):
@@ -43,10 +48,21 @@ def load_checkpoint(days, restart):
 
 
 def save_checkpoint(state):
+    """Write the checkpoint, keeping steps another backfill window (e.g. LinkedIn
+    and Naukri run side by side) finished meanwhile."""
     STATE.mkdir(parents=True, exist_ok=True)
-    tmp = CHECKPOINT.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=1))
-    tmp.replace(CHECKPOINT)
+    with open(STATE / "backfill.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if CHECKPOINT.exists():
+            disk = json.loads(CHECKPOINT.read_text())
+            if disk.get("since") == state["since"]:
+                state["done"] += [k for k in disk.get("done", []) if k not in state["done"]]
+                for source, times in disk.get("seconds", {}).items():
+                    if len(times) > len(state["seconds"].get(source, [])):
+                        state["seconds"][source] = times
+        tmp = CHECKPOINT.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(state, indent=1))
+        tmp.replace(CHECKPOINT)
 
 
 def eta(state, todo):
@@ -56,6 +72,26 @@ def eta(state, todo):
         times = state["seconds"].get(source) or []
         left += sum(times) / len(times) if times else 0
     return left
+
+
+def online():
+    """True if the Mac can look up and reach a well-known site."""
+    for host in ("www.google.com", "www.cloudflare.com"):
+        try:
+            socket.create_connection((host, 443), timeout=5).close()
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def wait_for_internet(log, sleep=time.sleep):
+    """Block until the internet is back, checking every minute."""
+    log("  the internet seems to be down; waiting for it to come back (checking every minute)")
+    t0 = time.time()
+    while not online():
+        sleep(CHECK_EVERY)
+    log(f"  internet is back after {fmt(time.time() - t0)}; trying this step again")
 
 
 def fmt(seconds):
@@ -76,16 +112,21 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
     save_checkpoint(state)
 
     isb = load_isb(db)
-    skip, totals = set(), {"new": 0, "failed": 0}
+    skip, totals, fails = set(), {"new": 0, "failed": 0}, {}
     for n, (key, source, g, locs) in enumerate(todo, 1):
         if source in skip:
             continue
         log(f"\n[{n}/{len(todo)}] {key}")
         t0 = time.time()
-        summary = run(db, [source], g, locs, since=since, isb=isb, log=log)[source]
+        for _ in range(3):                            # an internet drop doesn't use up the step
+            summary = run(db, [source], g, locs, since=since, isb=isb, log=log)[source]
+            if summary["status"] in ("success", "pending") or online():
+                break
+            wait_for_internet(log)
         took = time.time() - t0
         totals["new"] += summary["new"]
 
+        fails[source] = 0 if summary["status"] == "success" else fails.get(source, 0) + 1
         if summary["status"] == "success":
             state["done"].append(key)
             state["seconds"].setdefault(source, []).append(round(took))
@@ -94,6 +135,10 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
             log(f"  {source} paused for this session; run the backfill again later to continue it")
         else:
             totals["failed"] += 1                     # left undone, retried next time
+            if fails[source] >= FAILS_IN_A_ROW:       # e.g. Naukri asking for a captcha: stop knocking
+                skip.add(source)
+                log(f"  {source} failed {fails[source]} steps in a row; paused for this session. "
+                    f"Run the backfill again later (a few hours) to continue it")
         save_checkpoint(state)
 
         remaining = [s for s in todo[n:] if s[1] not in skip]

@@ -82,6 +82,16 @@ class DB:
             out += self.rpc("upsert_jobs", rows=rows[i:i + 200])
         return out
 
+    def described_keys(self, keys):
+        """Of these dedupe keys, the jobs already saved with a description (or tagged)."""
+        found, keys = set(), list(keys)
+        for i in range(0, len(keys), 100):
+            quoted = ",".join('"' + k.replace("\\", "\\\\").replace('"', '\\"') + '"' for k in keys[i:i + 100])
+            rows = self.select("jobs", {"select": "dedupe_key", "dedupe_key": f"in.({quoted})",
+                                        "or": "(description_trimmed.not.is.null,tagged_at.not.is.null)"})
+            found |= {r["dedupe_key"] for r in rows}
+        return found
+
     def known_source_ids(self, ids):
         found = set()
         ids = list(ids)

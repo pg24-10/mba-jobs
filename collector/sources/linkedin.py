@@ -1,8 +1,9 @@
 """LinkedIn, public guest pages only. No login, no cookies, no Voyager API.
 
-Pacing: 2-3 s between requests with jitter, never under 1.5 s. A 429/999
-doubles the wait; after `blocks_before_stop` blocks the run raises Blocked so
-the caller can mark LinkedIn "pending" for the Mac to pick up.
+Pacing: 2-3 s between requests with jitter, never under 1.5 s, and a short
+break every few hundred requests. A 429/999 doubles the wait and rests for
+5, 10, then 20 minutes; after `blocks_before_stop` blocks the run raises Blocked so
+the caller can mark LinkedIn "pending" (keeping the jobs finished so far).
 """
 
 import html
@@ -14,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 from ..settings import config
+from . import Blocked
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
@@ -30,10 +32,6 @@ try:
     _VERIFY = certifi.where()
 except ImportError:
     _VERIFY = True
-
-
-class Blocked(Exception):
-    """LinkedIn pushed back too often; stop LinkedIn for this run."""
 
 
 def _text(fragment):
@@ -73,6 +71,9 @@ class LinkedIn:
         self.min_delay = float(s["min_delay_seconds"])
         self.max_pages = int(s["max_pages_per_search"])
         self.blocks_before_stop = int(s["blocks_before_stop"])
+        self.block_rest = float(s.get("block_rest_minutes", 5)) * 60
+        self.rest_every = int(s.get("rest_every_requests", 0))
+        self.rest_minutes = float(s.get("rest_minutes", 0))
         self.wait = self.delay
         self.blocks = 0
         self.requests = 0
@@ -93,6 +94,9 @@ class LinkedIn:
             time.sleep(max(0.0, self._last + pause - time.time()))
             self._last = time.time()
             self.requests += 1
+            if self.rest_every and self.requests % self.rest_every == 0:
+                self.log(f"  {self.requests} LinkedIn requests: short {self.rest_minutes:.0f}-minute break")
+                time.sleep(self.rest_minutes * 60)
             try:
                 r = self.http.get(url, params=params, timeout=30)
             except requests.RequestException as e:
@@ -105,7 +109,9 @@ class LinkedIn:
                 self.log(f"  linkedin pushed back ({r.status_code}), block {self.blocks}; waiting {self.wait:.0f}s between requests")
                 if self.blocks >= self.blocks_before_stop:
                     raise Blocked(f"{self.blocks} blocks (last status {r.status_code})")
-                time.sleep(self.wait * 2)
+                rest = self.block_rest * 2 ** (self.blocks - 1)       # 5, 10, 20 minutes
+                self.log(f"  resting {rest / 60:.0f} minutes before trying LinkedIn again")
+                time.sleep(rest)
                 continue
             if "authwall" in r.url:
                 return None

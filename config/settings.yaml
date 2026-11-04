@@ -36,6 +36,9 @@ linkedin:
   min_delay_seconds: 1.5
   max_pages_per_search: 100     # 10 results per page, LinkedIn stops near 1,000
   blocks_before_stop: 4
+  block_rest_minutes: 5         # after a push-back: rest 5, then 10, then 20 minutes
+  rest_every_requests: 250      # and a break every 250 requests, before LinkedIn asks for one
+  rest_minutes: 5
 
 # Lever asks for at least 1 second between requests.
 ats:
@@ -60,6 +63,7 @@ jobspy:
   delay_seconds: {indeed: 3, naukri: 8}
   retry_wait_seconds: 60
   give_up_after: 3
+  naukri_page_delay_seconds: 4  # between Naukri job pages (plus 0-2 s jitter)
 
 # Longest catch-up window if earlier runs failed.
 max_window_days: 30

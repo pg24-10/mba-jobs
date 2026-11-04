@@ -13,9 +13,9 @@ from .companies import IsbMatcher
 from .settings import INBOX, LOGS, STATE, config, machine
 from .sources import ats as ats_source
 from .sources import iimjobs as iimjobs_source
-from .sources import jobspy_sources
-from .sources.linkedin import Blocked, LinkedIn, to_raw as linkedin_raw
-from .text import (city_of, company_key, excluded_by, experience_range, fold,
+from .sources import Blocked, jobspy_sources
+from .sources.linkedin import LinkedIn, to_raw as linkedin_raw
+from .text import (big_board_title_ok, city_of, company_key, excluded_by, experience_range, fold,
                    is_vague, looks_like_agency, title_key, to_lpa, trim_requirements, work_mode_of)
 
 SITE_CITIES = {l["name"] for l in config("searches")["locations"]}
@@ -158,19 +158,28 @@ def collect_linkedin(db, groups, locations, since, log):
                                 for p in phrases)
                 n += found
             log(f"  linkedin {g['id']} / {loc['name']}: {n} cards ({li.requests} requests so far)")
-    # details (description, industry) only for kept jobs we have not stored before
+    # details (description, industry) only for new jobs whose title looks like the
+    # searches; the rest are saved from the card alone. Each detail is one request.
     keep = {i: c for i, c in cards.items() if not excluded_by(c["title"])}
     known = {s.split(":", 1)[1] for s in db.known_source_ids(f"linkedin:{i}" for i in keep)}
-    raws = []
-    todo = [i for i in keep if i not in known]
-    log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, {len(todo)} new -> fetching details")
-    for n, i in enumerate(keep, 1):
-        info = li.detail(i) if i in todo else None
+    todo = {i for i in keep if i not in known and big_board_title_ok(keep[i]["title"])}
+    todo -= {s.split(":", 1)[1] for s in not_worth_opening(db, [linkedin_raw(keep[i]) | {"search_city": keep[i]["search_city"]}
+                                                                for i in todo])}
+    log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
+        f"{len(keep) - len(known)} new, {len(todo)} worth opening -> fetching details")
+    raws, opened = [], 0
+    for i in sorted(keep, key=lambda i: i not in todo):      # the ones to open first
+        try:
+            info = li.detail(i) if i in todo else None
+        except Blocked as e:                                 # keep the details fetched so far
+            e.partial = raws
+            raise
+        opened += i in todo
         raw = linkedin_raw(keep[i], info)
         raw["search_city"] = keep[i]["search_city"]
         raws.append(raw)
-        if i in todo and n % 50 == 0:
-            log(f"    details: {n}/{len(keep)}")
+        if i in todo and opened % 50 == 0:
+            log(f"    details: {opened}/{len(todo)}")
     log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs")
     return raws
 
@@ -188,7 +197,7 @@ def _linkedin_search(li, cards, query, place, city, seconds, extra):
     return n
 
 
-def collect_jobspy(source, groups, locations, since, log):
+def collect_jobspy(db, source, groups, locations, since, log):
     hours = (now() - since).total_seconds() / 3600
     pace = config("settings")["jobspy"]
     delay = pace["delay_seconds"].get(source, 3)
@@ -198,6 +207,8 @@ def collect_jobspy(source, groups, locations, since, log):
             for loc in locations:
                 time.sleep(delay)
                 found, errors = jobspy_sources.search(source, term, loc[source], hours)
+                if source == "naukri" and jobspy_sources.captcha(errors):
+                    raise Blocked("Naukri asked for a captcha (406) on its search page")
                 if errors:
                     log(f"  {source} {term} / {loc['name']}: {len(found)} with errors, "
                         f"trying again in {pace['retry_wait_seconds']}s ({errors[-1][:80]})")
@@ -212,7 +223,56 @@ def collect_jobspy(source, groups, locations, since, log):
                 log(f"  {source} {term} / {loc['name']}: {len(found)}" + (" (incomplete)" if errors else ""))
                 if failing >= pace["give_up_after"]:
                     raise RuntimeError(f"{source} kept failing ({failing} searches in a row): {errors[-1][:120]}")
+    if source == "naukri":
+        raws = naukri_details(db, raws, pace, log)
     return raws
+
+
+class _NoIsb:
+    def match(self, company):
+        return None
+
+
+def not_worth_opening(db, raws):
+    """source_ids of jobs whose page would add nothing: dropped anyway (e.g. a city we
+    do not cover), or the same job (company, title, city) already saved with a
+    description from another site."""
+    keys, skip = {}, set()
+    for r in raws:
+        row, _ = normalize(r, _NoIsb())
+        if row:
+            keys.setdefault(row["dedupe_key"], []).append(r["source_id"])
+        else:
+            skip.add(r["source_id"])
+    for k in db.described_keys(keys) if keys else ():
+        skip.update(keys[k])
+    return skip
+
+
+def naukri_details(db, raws, pace, log):
+    """Open the Naukri job pages worth opening (new, title looks like the searches),
+    one at a time. The rest keep what the search row gave."""
+    by_id = {}
+    for r in raws:
+        by_id.setdefault(r["source_id"], r)
+    known = db.known_source_ids(i for i, r in by_id.items() if not excluded_by(r["title"]))
+    todo = [i for i, r in by_id.items() if i not in known and big_board_title_ok(r["title"])]
+    skip = not_worth_opening(db, [by_id[i] for i in todo])
+    todo = [i for i in todo if i not in skip]
+    log(f"  naukri: {len(by_id)} jobs, {len(todo)} new worth opening -> fetching details")
+    pages = jobspy_sources.NaukriPages(pace.get("naukri_page_delay_seconds", 4))
+    done = [r for i, r in by_id.items() if i not in todo]
+    for n, i in enumerate(todo, 1):
+        try:
+            info = pages.details(i.split("nk-", 1)[-1])
+        except Blocked as e:                                 # keep the pages opened so far
+            e.partial = done + [by_id[j] for j in todo[:n - 1]]
+            raise
+        for field, value in (info or {}).items():
+            by_id[i][field] = by_id[i].get(field) or value
+        if n % 50 == 0:
+            log(f"    details: {n}/{len(todo)}")
+    return list(by_id.values())
 
 
 def collect_iimjobs(groups, locations, since, log):
@@ -327,9 +387,10 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
             try:
                 raws = collect(db, source, groups, locations, start, log)
                 s["status"] = "success"
-            except Blocked as e:
-                s["status"], s["error"] = "pending", f"LinkedIn blocked: {e}. Left for the Mac."
-                log(f"  {s['error']}")
+            except Blocked as e:                 # save what was finished; the rest waits
+                raws = e.partial
+                s["status"], s["error"] = "pending", f"{source} blocked: {e}. Left for a later run."
+                log(f"  {s['error']} Saving the {len(raws)} jobs finished before the block.")
 
             if source != "ats":
                 try:
@@ -398,7 +459,10 @@ def save_unsaved(db, log):
     """Save jobs an earlier run could not. Returns inbox items for the new ones."""
     items = []
     for path in sorted(UNSAVED.glob("*.json")) if UNSAVED.exists() else []:
-        rows = json.loads(path.read_text())
+        try:
+            rows = json.loads(path.read_text())
+        except FileNotFoundError:             # another backfill window just saved it
+            continue
         try:
             saved = db.upsert_jobs(rows)
         except Exception as e:
@@ -406,7 +470,7 @@ def save_unsaved(db, log):
             break
         by_key = {r["dedupe_key"]: r for r in rows}
         items += [inbox_item(by_key[r["dedupe_key"]], r["id"]) for r in saved if r["is_new"]]
-        path.unlink()
+        path.unlink(missing_ok=True)
         log(f"saved {len(rows)} jobs left over from an earlier run ({path.name})")
     return items
 
@@ -420,7 +484,7 @@ def collect(db, source, groups, locations, since, log):
     if source == "linkedin":
         return collect_linkedin(db, groups, locations, since, log)
     if source in ("indeed", "naukri"):
-        return collect_jobspy(source, groups, locations, since, log)
+        return collect_jobspy(db, source, groups, locations, since, log)
     if source == "iimjobs":
         return collect_iimjobs(groups, locations, since, log)
     if source == "ats":
@@ -439,13 +503,15 @@ def write_inbox(items):
     if not items:
         return None
     INBOX.mkdir(parents=True, exist_ok=True)
-    path = INBOX / f"{now():%Y-%m-%d-%H%M}.json"
-    n = 2
-    while path.exists():                      # several backfill steps in one minute
-        path = INBOX / f"{now():%Y-%m-%d-%H%M}-{n}.json"
-        n += 1
-    path.write_text(json.dumps(items, ensure_ascii=False, indent=1))
-    return path
+    stamp, n = f"{now():%Y-%m-%d-%H%M}", 1
+    while True:                               # several steps (or windows) in one minute
+        path = INBOX / (f"{stamp}.json" if n == 1 else f"{stamp}-{n}.json")
+        try:
+            with open(path, "x") as f:
+                f.write(json.dumps(items, ensure_ascii=False, indent=1))
+            return path
+        except FileExistsError:
+            n += 1
 
 
 def write_run_log(summary):
