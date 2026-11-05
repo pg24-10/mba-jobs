@@ -25,14 +25,15 @@ Written: 3 Nov 2026
 |---|---|
 | Daily collection | GitHub Actions, once a day at about 1:00 PM IST |
 | LinkedIn route | Layer 1: direct from GitHub Actions. Layer 2: Pranav's Mac, via a background checker that runs LinkedIn when it is marked "pending". No Tailscale, no Apify, no paid proxies. |
-| Backfill | One-time, last 30 days, all sources, run on Pranav's Mac |
+| Backfill | One-time, last 30 days, run on Pranav's Mac. Naukri left out (changed 5 Nov 2026, Pranav): its search kept blocking us, so Naukri comes in through the daily runs only. |
 | Database | Supabase (free tier) |
 | Website | Next.js on Vercel (Hobby, free, non-commercial) |
 | Tagging | Claude Code subagent on Haiku 5.5, after a Haiku vs Sonnet accuracy check |
 | Tagging schedule | Claude scheduled tasks at 2:30 PM and 10:00 PM IST |
 | ISB labels | Show a "Past ISB recruiter" tag and filter. Do NOT show "Coming to campus" or any cluster/status info. Keep this as a single on/off setting in config. |
-| Sign-in (changed 3 Nov 2026, Pranav) | Optional. Supabase Auth with Google sign-in and an email sign-in link (sent through Resend's free tier). Browsing never needs an account. Store only the email and the user's own job marks; a user can delete their account. |
-| Content shown | Title, company, location, key facts, Claude's one-line summary, and a link to the original post. Never show full copied job descriptions. |
+| Sign-in (changed 3 Nov 2026, Pranav) | Optional. Supabase Auth with Google sign-in and an email sign-in link (sent through Resend's free tier). Browsing never needs an account. Store only the email, the user's own job marks and (if they use resume matching) their edited profile; a user can delete their account. |
+| Content shown (changed 5 Nov 2026, Pranav) | Title, company, location, key facts, Claude's one-line summary, and a job page with a short breakdown Claude writes in its own words (what you'd do, what they're looking for, key skills). A button links to the original post for the full details and applying. Never show full copied job descriptions. |
+| Resume matching (added 5 Nov 2026, Pranav) | Signed-in users can upload a resume to rank jobs by fit. Free: the PDF is read in the browser and never uploaded or stored. See Website. |
 
 ## Architecture
 
@@ -187,15 +188,17 @@ If a source does not support OR, split that group into single phrases automatica
 - experience_min, experience_max (from Naukri or Claude), salary_min_lpa, salary_max_lpa, salary_shown, employment_type, is_agency
 - past_isb_recruiter (bool)
 - description_trimmed (temporary: deleted after tagging)
-- Claude tags: function, seniority, background_wanted (array), mba_requirement (required / preferred / not mentioned), masters_mentioned, industry, company_type, startup_stage (nullable, approximate), fit_score (1 to 5), summary (one line, Claude's own words), tagged_at, tag_model
+- Claude tags: function, seniority, background_wanted (array), mba_requirement (required / preferred / not mentioned), masters_mentioned, industry, company_type, startup_stage (nullable, approximate), fit_score (1 to 5), summary (one line, Claude's own words), duties (3 to 5 short bullets, Claude's own words), looking_for (2 to 5 short bullets, Claude's own words), key_skills (array, up to 8), tagged_at, tag_model
 
 **companies**: name, company_key, in_lineup (bool, not shown on site), in_isb_recruiters (bool), in_watch_list (bool), ats_type, ats_token, linkedin_company_id
+
+**user_profiles** (resume matching): user_id, years_experience, functions (array), industries (array), skills (array), background (array), target_cities (array), updated_at. Row-level security `auth.uid() = user_id`. Deleted with the account.
 
 **runs**: run_id, started_at, finished_at, machine (github / mac), source, window_start, jobs_found, jobs_new, linkedin_route (direct / mac / skipped), status, errors
 
 - Row-level security: the website uses a read-only key that can only SELECT jobs. Only the collector's service key can write.
 - Mark jobs stale after 30 days or when the posting disappears. Hide stale jobs by default.
-- Size target: about 1 KB per job after descriptions are deleted. Stay well under the 500 MB free limit.
+- Size target: about 1.5 KB per job after descriptions are deleted (the breakdown adds about 0.5 KB). Stay well under the 500 MB free limit.
 
 ## LinkedIn fallback on Pranav's Mac
 
@@ -207,14 +210,14 @@ If a source does not support OR, split that group into single phrases automatica
 
 ## Backfill (one time, on the Mac)
 
-- Command: `mba-jobs backfill --days 30`. Covers all sources and all search groups.
+- Command: `mba-jobs backfill --days 30`. Covers all search groups and every source except Naukri (left out on 5 Nov 2026 after repeated blocks; the daily runs collect Naukri).
 - **Resumable:** checkpoint after each search, so stopping and restarting continues where it left off.
 - Expected time: LinkedIn about 8,000 requests, roughly 6 to 8 hours; other sources about 1 hour. Show progress and an estimated finish time.
 - Tell Pranav to run it overnight with the Mac plugged in, using `caffeinate -i` to keep it awake, on a phone hotspot or home Wi-Fi, not campus Wi-Fi. Data use is about 1 GB.
 
 ## Tagging with Claude
 
-- Define a subagent in `.claude/agents/job-tagger.md` with `model: haiku`. It takes a batch of 50 jobs and returns JSON tags for each (fields listed under the `jobs` table).
+- Define a subagent in `.claude/agents/job-tagger.md` with `model: haiku`. It takes a batch of 50 jobs and returns JSON tags for each (fields listed under the `jobs` table), including the own-words breakdown: duties, looking_for and key_skills. The breakdown must be rewritten in plain words, never copied sentences from the post.
 - The main session reads inbox files and hands them to the tagger **one batch at a time, sequentially, never in parallel**. Parallel subagent dispatch has caused hangs in Pranav's other routines.
 - Send only the requirements part of each description (trimmed), not the whole text.
 - Resumable: a job tagged once is never re-tagged. If a usage limit stops the run, the next run continues.
@@ -234,6 +237,8 @@ If a source does not support OR, split that group into single phrases automatica
 
 - **Main page:** search bar, filter panel, and a list of job cards sorted by fit score (option: newest).
 - **Job card:** title, company, "Past ISB recruiter" badge (if on), city and work mode, years required, salary if shown, posted date, Claude's one-line summary, Apply button linking to the original post. No full description.
+- **Job page** (opens from a card): the card's facts in a row, then "What you'd do", "What they're looking for" and "Key skills" from Claude's breakdown, then a "Read the full post and apply on <site>" button. A small line: "Summary written by mba-jobs. The original post has the full details."
+- **Resume matching** (signed in only): the user picks a resume PDF; the browser reads the text (pdf.js) and fills a profile (years, functions, industries, skills, background, cities) with simple rules, no AI API. The user checks and edits the profile, then saves it to `user_profiles`. The PDF is never uploaded or stored. Jobs get a "Match" score from the profile vs the job's tags, shown on cards as a sort option and a "Good match" badge. The user can clear the profile any time.
 - **Filters:**
   - Function, seniority
   - Years of experience (min-max slider), background wanted, MBA required / preferred / not mentioned, industry experience required
@@ -299,7 +304,9 @@ If a source does not support OR, split that group into single phrases automatica
 
 **Phase 5: Website**
 - Build the Next.js site, deploy to Vercel as `mba-jobs`, connect the read-only key.
-- Add optional sign-in (Google + email link), the `user_jobs` table, and shareable search links. Pranav creates the Google Cloud OAuth client and the Resend account, with click-by-click steps.
+- Add the job page with Claude's breakdown.
+- Add optional sign-in (Google + email link), the `user_jobs` table, and shareable search links.
+- Add resume matching for signed-in users (`user_profiles` table, in-browser PDF reading, editable profile, match score and sort). Pranav creates the Google Cloud OAuth client and the Resend account, with click-by-click steps.
 - **CHECKPOINT:** Pranav reviews on laptop and phone.
 
 **Phase 6: One week of watching**
@@ -311,7 +318,7 @@ If a source does not support OR, split that group into single phrases automatica
 
 - LinkedIn guest pages only. No login, no cookies, no accounts.
 - Keep request volumes modest and paced as above.
-- Store and show only what the site needs. Delete full descriptions after tagging.
+- Store and show only what the site needs. Delete full descriptions after tagging. Show only facts and Claude's own-words breakdown, never copied text.
 - Keep every setting someone might want to change (searches, locations, exclude words, watch list, ISB tag on/off) in `config/`, not in code.
 - When something fails, fail one source, not the whole run.
 - Explain things to Pranav in plain, simple language.

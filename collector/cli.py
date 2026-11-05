@@ -166,7 +166,7 @@ def main(argv=None):
 
     b = sub.add_parser("backfill", help="one-time catch-up of the last N days (resumable)")
     b.add_argument("--days", type=float, default=30)
-    b.add_argument("--sources", nargs="+", default=["iimjobs", "naukri", "indeed", "linkedin", "ats"])
+    b.add_argument("--sources", nargs="+", default=["iimjobs", "indeed", "linkedin", "ats"])  # Naukri: daily runs only (5 Nov 2026)
     b.add_argument("--group", nargs="+", help="search group ids (default: all)")
     b.add_argument("--city", nargs="+", help="location names (default: all)")
     b.add_argument("--restart", action="store_true", help="forget the checkpoint and start over")
