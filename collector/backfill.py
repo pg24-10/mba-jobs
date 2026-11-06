@@ -10,10 +10,10 @@ the next night still covers the same 30 days.
 import fcntl
 import json
 import os
-import socket
 import time
 from datetime import datetime, timedelta, timezone
 
+from .net import online
 from .pipeline import load_isb, run
 from .settings import STATE, config
 
@@ -76,17 +76,6 @@ def eta(state, todo):
     return left
 
 
-def online():
-    """True if the Mac can look up and reach a well-known site."""
-    for host in ("www.google.com", "www.cloudflare.com"):
-        try:
-            socket.create_connection((host, 443), timeout=5).close()
-            return True
-        except OSError:
-            continue
-    return False
-
-
 def wait_for_internet(log, sleep=time.sleep):
     """Block until the internet is back, checking every minute."""
     log("  the internet seems to be down; waiting for it to come back (checking every minute)")
@@ -105,12 +94,19 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
     searches = config("searches")
     groups = groups or searches["groups"]
     locations = locations or searches["locations"]
+    settings = config("settings").get("backfill", {})
+    skipped = set(settings.get("skip_locations", []))
+    locations = [loc for loc in locations if loc["name"] not in skipped]
     state = load_checkpoint(days, restart)
     since = datetime.fromisoformat(state["since"])
+    if settings.get("window_days"):                # steps still to run look back only this far;
+        recent = datetime.now(timezone.utc) - timedelta(days=settings["window_days"])
+        since = max(since, recent)                 # jobs already saved are kept as they are
     plan = steps(sources, groups, locations)
     todo = [s for s in plan if s[0] not in state["done"]]
     log(f"backfill since {since:%Y-%m-%d %H:%M} UTC: {len(plan)} steps, "
-        f"{len(plan) - len(todo)} already done, {len(todo)} to go")
+        f"{len(plan) - len(todo)} already done, {len(todo)} to go"
+        + (f" (skipping {', '.join(sorted(skipped))})" if skipped else ""))
     save_checkpoint(state)
 
     isb = load_isb(db)

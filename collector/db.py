@@ -5,6 +5,7 @@ import time
 
 import requests
 
+from .net import online, wait_until_online
 from .settings import secret
 
 try:
@@ -28,19 +29,23 @@ class DB:
             "Content-Type": "application/json",
         })
 
-    WAITS = [5, 15, 30, 60, 120]        # about 4 minutes in all: rides out a Wi-Fi drop
+    WAITS = [5, 15, 30, 60, 120]        # about 4 minutes in all, for a slow or busy Supabase
+    OFFLINE_WAIT = 30 * 60              # and up to 30 minutes when the internet itself is down
 
     def _send(self, method, url, **kw):
         """One request, retried on network errors and 5xx."""
-        for attempt, wait in enumerate(self.WAITS + [None]):
+        waits = list(self.WAITS) + [None]
+        while True:
             try:
                 r = self.s.request(method, url, **kw)
-                if r.status_code < 500 or wait is None:
+                if r.status_code < 500 or waits[0] is None:
                     return self._check(r)
             except requests.RequestException:
-                if wait is None:
+                if not online() and wait_until_online(self.OFFLINE_WAIT):
+                    continue                            # the drop is over: try again, same budget
+                if waits[0] is None:
                     raise
-            time.sleep(wait)
+            time.sleep(waits.pop(0))
 
     def _check(self, r):
         if r.status_code >= 400:

@@ -108,3 +108,25 @@ def test_rests_after_a_block_and_carries_on(tmp_path, monkeypatch):
     monkeypatch.setattr(bf, "run", _run)
     assert bf.backfill(None, ["naukri"], GROUPS, CITIES, log=lambda *a: None)
     assert len(calls) == 5                              # step 2 was tried again after the rest
+
+
+def test_recent_window_and_skipped_places(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    _setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(bf, "config", lambda name: {"backfill": {
+        "window_days": 14, "skip_locations": ["Remote (India)"]}})
+    seen = []
+
+    def _run(db, sources, groups, locations, since, isb, log):
+        seen.append((locations[0]["name"], since))
+        return {sources[0]: {"status": "success", "new": 0}}
+    monkeypatch.setattr(bf, "run", _run)
+    old = datetime.now(timezone.utc) - timedelta(days=30)
+    (tmp_path / "backfill.json").write_text(
+        f'{{"since": "{old.isoformat()}", "days": 30, "done": [], "seconds": {{}}}}')
+    assert bf.backfill(None, ["linkedin"], GROUPS[:1], CITIES + [{"name": "Remote (India)"}], log=lambda *a: None)
+    assert [c for c, _ in seen] == ["Bangalore", "Mumbai"]          # Remote left out
+    for _, since in seen:                                            # 14 days back, not 30
+        assert timedelta(days=13.9) < datetime.now(timezone.utc) - since < timedelta(days=14.1)
+    import json
+    assert json.loads((tmp_path / "backfill.json").read_text())["since"] == old.isoformat()  # checkpoint kept

@@ -14,8 +14,9 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from ..net import online, wait_until_online
 from ..settings import config
-from . import Blocked
+from . import Blocked, NetworkDown
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
@@ -74,6 +75,7 @@ class LinkedIn:
         self.block_rest = float(s.get("block_rest_minutes", 5)) * 60
         self.rest_every = int(s.get("rest_every_requests", 0))
         self.rest_minutes = float(s.get("rest_minutes", 0))
+        self.offline_wait = float(s.get("offline_wait_minutes", 30)) * 60
         self.wait = self.delay
         self.blocks = 0
         self.requests = 0
@@ -88,8 +90,11 @@ class LinkedIn:
         self._last = 0.0
 
     def _get(self, url, params=None):
-        """GET with pacing and back-off. Returns body text, or None for a 4xx/5xx."""
-        for attempt in range(3):
+        """GET with pacing and back-off. Returns body text, or None for a 4xx/5xx.
+        A network drop waits for the internet; if it stays down, or LinkedIn stops
+        answering, raises NetworkDown (never a silent "no results")."""
+        timeouts = 0
+        while True:
             pause = max(self.min_delay, self.wait + random.uniform(-0.5, 0.8))
             time.sleep(max(0.0, self._last + pause - time.time()))
             self._last = time.time()
@@ -100,8 +105,15 @@ class LinkedIn:
             try:
                 r = self.http.get(url, params=params, timeout=30)
             except requests.RequestException as e:
-                self.log(f"  linkedin network error: {e}")
-                time.sleep(5 * (attempt + 1))
+                self.log(f"  linkedin network error: {str(e)[:160]}")
+                if not online():
+                    if not wait_until_online(self.offline_wait, self.log):
+                        raise NetworkDown(f"internet down for over {self.offline_wait / 60:.0f} min")
+                    continue                                  # a drop doesn't count as a try
+                timeouts += 1
+                if timeouts >= 3:
+                    raise NetworkDown(f"LinkedIn not answering: {str(e)[:160]}")
+                time.sleep(5 * timeouts)
                 continue
             if r.status_code in (429, 999):
                 self.blocks += 1
@@ -120,7 +132,6 @@ class LinkedIn:
             # ease back towards the normal pace after a good response
             self.wait = max(self.delay, self.wait * 0.9)
             return r.text
-        return None
 
     # ---------------------------------------------------------- search
 
