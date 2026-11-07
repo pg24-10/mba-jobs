@@ -33,7 +33,7 @@ isb_match:
 # One-time backfill (changed 6 Nov 2026, Pranav: steps were taking too long).
 # Jobs already saved are never removed by these; they only shape the steps still to run.
 backfill:
-  window_days: 14                    # steps still to run look back this many days (the first 33 used 30)
+  window_days: 7                     # steps still to run look back this many days (first 33 used 30, then 14)
   skip_locations: ["Remote (India)"] # heaviest searches; the daily runs still cover them
 
 # LinkedIn pacing (seconds between requests, plus random jitter).
@@ -41,8 +41,10 @@ linkedin:
   delay_seconds: 2.5
   min_delay_seconds: 1.5
   max_pages_per_search: 100     # 10 results per page, LinkedIn stops near 1,000
-  blocks_before_stop: 4
-  block_rest_minutes: 5         # after a push-back: rest 5, then 10, then 20 minutes
+  # after each push-back (429/999, or LinkedIn going quiet) rest this many minutes;
+  # once all are used the step stops and the backfill retries it an hour later
+  block_rests_minutes: [5, 5, 10, 10, 20, 20, 30, 30]
+  slow_after_block_requests: 100  # after a push-back, stay at double the delay this many requests
   rest_every_requests: 250      # and a break every 250 requests, before LinkedIn asks for one
   rest_minutes: 5
   offline_wait_minutes: 30     # internet down: wait this long for it, then fail the step (it runs again)

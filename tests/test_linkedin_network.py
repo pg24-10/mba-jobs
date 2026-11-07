@@ -44,11 +44,36 @@ def test_internet_stays_down_fails_the_step(monkeypatch):
         li._get("u")
 
 
-def test_linkedin_not_answering_fails_the_step(monkeypatch):
+def test_linkedin_going_quiet_rests_like_a_push_back(monkeypatch):
     t = requests.ReadTimeout("Read timed out")
-    li = _client(monkeypatch, [t, t, t], {"now": True})
-    with pytest.raises(NetworkDown):
+    li = _client(monkeypatch, [t, t, t, _Resp()], {"now": True})
+    assert li._get("u") == "<li>ok</li>"
+    assert li.blocks == 1
+
+
+class _429(_Resp):
+    status_code = 429
+
+
+def test_rest_schedule_then_blocked(monkeypatch):
+    rests = []
+    li = _client(monkeypatch, [_429()] * 9, {"now": True})
+    monkeypatch.setattr(li_mod.time, "sleep", lambda s: rests.append(s))
+    li.block_rests = [m * 60 for m in (5, 5, 10, 10, 20, 20, 30, 30)]
+    with pytest.raises(li_mod.Blocked):
         li._get("u")
+    long_rests = [r / 60 for r in rests if r >= 60]
+    assert long_rests == [5, 5, 10, 10, 20, 20, 30, 30]
+
+
+def test_slower_pace_held_after_push_back(monkeypatch):
+    li = _client(monkeypatch, [_429()] + [_Resp()] * 5, {"now": True})
+    li.slow_for = 3
+    for _ in range(3):                        # the push-back plus 3 good answers
+        li._get("u")
+    assert li.wait == li.delay * 2            # still held
+    li._get("u")
+    assert li.wait < li.delay * 2             # then eases back
 
 
 def test_database_waits_out_a_drop(monkeypatch):

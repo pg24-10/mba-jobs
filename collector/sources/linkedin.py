@@ -1,9 +1,11 @@
 """LinkedIn, public guest pages only. No login, no cookies, no Voyager API.
 
 Pacing: 2-3 s between requests with jitter, never under 1.5 s, and a short
-break every few hundred requests. A 429/999 doubles the wait and rests for
-5, 10, then 20 minutes; after `blocks_before_stop` blocks the run raises Blocked so
-the caller can mark LinkedIn "pending" (keeping the jobs finished so far).
+break every few hundred requests. A 429/999 (or LinkedIn going quiet while the
+internet is up) rests for the next entry in `block_rests_minutes` (5, 5, 10, 10,
+20, 20, 30, 30) and keeps a doubled delay for a while; once the rests run out the
+run raises Blocked so the caller can mark LinkedIn "pending" (keeping the jobs
+finished so far).
 """
 
 import html
@@ -71,8 +73,10 @@ class LinkedIn:
         self.delay = float(s["delay_seconds"])
         self.min_delay = float(s["min_delay_seconds"])
         self.max_pages = int(s["max_pages_per_search"])
-        self.blocks_before_stop = int(s["blocks_before_stop"])
-        self.block_rest = float(s.get("block_rest_minutes", 5)) * 60
+        # rests after each push-back, in minutes; once they run out the step stops (Blocked)
+        self.block_rests = [float(m) * 60 for m in s.get("block_rests_minutes", [5, 10, 20])]
+        self.slow_for = int(s.get("slow_after_block_requests", 100))
+        self.slow_left = 0
         self.rest_every = int(s.get("rest_every_requests", 0))
         self.rest_minutes = float(s.get("rest_minutes", 0))
         self.offline_wait = float(s.get("offline_wait_minutes", 30)) * 60
@@ -91,8 +95,8 @@ class LinkedIn:
 
     def _get(self, url, params=None):
         """GET with pacing and back-off. Returns body text, or None for a 4xx/5xx.
-        A network drop waits for the internet; if it stays down, or LinkedIn stops
-        answering, raises NetworkDown (never a silent "no results")."""
+        A network drop waits for the internet; if it stays down, raises NetworkDown
+        (never a silent "no results"). LinkedIn going quiet counts as a push-back."""
         timeouts = 0
         while True:
             pause = max(self.min_delay, self.wait + random.uniform(-0.5, 0.8))
@@ -111,27 +115,39 @@ class LinkedIn:
                         raise NetworkDown(f"internet down for over {self.offline_wait / 60:.0f} min")
                     continue                                  # a drop doesn't count as a try
                 timeouts += 1
-                if timeouts >= 3:
-                    raise NetworkDown(f"LinkedIn not answering: {str(e)[:160]}")
-                time.sleep(5 * timeouts)
+                if timeouts < 3:
+                    time.sleep(5 * timeouts)
+                    continue
+                # internet is up but LinkedIn keeps going quiet: treat it like a push-back
+                timeouts = 0
+                self._push_back("no answer")
                 continue
             if r.status_code in (429, 999):
-                self.blocks += 1
-                self.wait = min(self.wait * 2, 60)
-                self.log(f"  linkedin pushed back ({r.status_code}), block {self.blocks}; waiting {self.wait:.0f}s between requests")
-                if self.blocks >= self.blocks_before_stop:
-                    raise Blocked(f"{self.blocks} blocks (last status {r.status_code})")
-                rest = self.block_rest * 2 ** (self.blocks - 1)       # 5, 10, 20 minutes
-                self.log(f"  resting {rest / 60:.0f} minutes before trying LinkedIn again")
-                time.sleep(rest)
+                self._push_back(r.status_code)
                 continue
             if "authwall" in r.url:
                 return None
             if r.status_code >= 400:
                 return None
-            # ease back towards the normal pace after a good response
-            self.wait = max(self.delay, self.wait * 0.9)
+            # after a push-back keep the slower pace for a while, then ease back
+            if self.slow_left:
+                self.slow_left -= 1
+            else:
+                self.wait = max(self.delay, self.wait * 0.9)
             return r.text
+
+    def _push_back(self, why):
+        """LinkedIn asked us to slow down: rest (5, 5, 10, 10, 20, 20, 30, 30 min by default),
+        then carry on at a slower pace. Raises Blocked once the rests are used up."""
+        self.blocks += 1
+        self.wait = max(self.wait, self.delay * 2)
+        self.slow_left = self.slow_for
+        self.log(f"  linkedin pushed back ({why}), block {self.blocks}; waiting {self.wait:.0f}s between requests")
+        if self.blocks > len(self.block_rests):
+            raise Blocked(f"{self.blocks} blocks (last: {why})")
+        rest = self.block_rests[self.blocks - 1]
+        self.log(f"  resting {rest / 60:.0f} minutes before trying LinkedIn again")
+        time.sleep(rest)
 
     # ---------------------------------------------------------- search
 
