@@ -138,7 +138,9 @@ def merge(rows):
 
 # ------------------------------------------------------------------ sources
 
-def collect_linkedin(db, groups, locations, since, log):
+def collect_linkedin(db, groups, locations, since, log, details=True):
+    """details=False (the backfill): save every job from its search card and queue the
+    ones worth opening for Claude to sort (collector/triage.py) instead of opening them."""
     li = LinkedIn(log=log)
     seconds = (now() - since).total_seconds()
     cards = {}
@@ -165,8 +167,15 @@ def collect_linkedin(db, groups, locations, since, log):
     todo = {i for i in keep if i not in known and big_board_title_ok(keep[i]["title"])}
     todo -= {s.split(":", 1)[1] for s in not_worth_opening(db, [linkedin_raw(keep[i]) | {"search_city": keep[i]["search_city"]}
                                                                 for i in todo])}
-    log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
-        f"{len(keep) - len(known)} new, {len(todo)} worth opening -> fetching details")
+    if not details:
+        from . import triage
+        triage.queue_cards([keep[i] | {"id": i} for i in sorted(todo)])
+        log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
+            f"{len(keep) - len(known)} new, {len(todo)} worth opening -> queued for Claude to sort")
+        todo = set()
+    else:
+        log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
+            f"{len(keep) - len(known)} new, {len(todo)} worth opening -> fetching details")
     raws, opened = [], 0
     for i in sorted(keep, key=lambda i: i not in todo):      # the ones to open first
         try:
@@ -373,7 +382,8 @@ def learn_boards(db, raws, log, check_sites=True):
 
 # ------------------------------------------------------------------ run
 
-def run(db, sources, groups=None, locations=None, days=None, since=None, isb=None, log=print):
+def run(db, sources, groups=None, locations=None, days=None, since=None, isb=None, log=print,
+        linkedin_details=True):
     """Run the given sources and save the results. Returns a summary dict.
 
     The window is `since` if given, else the last `days`, else a catch-up from
@@ -397,7 +407,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
             log(f"{source}: since {start:%Y-%m-%d %H:%M} UTC")
             raws = []
             try:
-                raws = collect(db, source, groups, locations, start, log)
+                raws = collect(db, source, groups, locations, start, log, linkedin_details)
                 s["status"] = "success"
             except Blocked as e:                 # save what was finished; the rest waits
                 raws = e.partial
@@ -492,9 +502,9 @@ def load_isb(db):
     return IsbMatcher(names)
 
 
-def collect(db, source, groups, locations, since, log):
+def collect(db, source, groups, locations, since, log, linkedin_details=True):
     if source == "linkedin":
-        return collect_linkedin(db, groups, locations, since, log)
+        return collect_linkedin(db, groups, locations, since, log, details=linkedin_details)
     if source in ("indeed", "naukri"):
         return collect_jobspy(db, source, groups, locations, since, log)
     if source == "iimjobs":

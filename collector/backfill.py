@@ -67,11 +67,16 @@ def save_checkpoint(state):
         tmp.replace(CHECKPOINT)
 
 
-def eta(state, todo):
+def timing_key(source, linkedin_details=True):
+    """LinkedIn steps that only read search cards are timed apart from full ones."""
+    return "linkedin-cards" if source == "linkedin" and not linkedin_details else source
+
+
+def eta(state, todo, linkedin_details=True):
     """Rough time left from the average step time of each source so far."""
     left = 0.0
     for key, source, *_ in todo:
-        times = state["seconds"].get(source) or []
+        times = state["seconds"].get(timing_key(source, linkedin_details)) or []
         left += sum(times) / len(times) if times else 0
     return left
 
@@ -102,11 +107,14 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
     if settings.get("window_days"):                # steps still to run look back only this far;
         recent = datetime.now(timezone.utc) - timedelta(days=settings["window_days"])
         since = max(since, recent)                 # jobs already saved are kept as they are
+    details = settings.get("linkedin_details", True)
     plan = steps(sources, groups, locations)
     todo = [s for s in plan if s[0] not in state["done"]]
     log(f"backfill since {since:%Y-%m-%d %H:%M} UTC: {len(plan)} steps, "
         f"{len(plan) - len(todo)} already done, {len(todo)} to go"
-        + (f" (skipping {', '.join(sorted(skipped))})" if skipped else ""))
+        + (f" (skipping {', '.join(sorted(skipped))})" if skipped else "")
+        + ("" if details or "linkedin" not in sources else
+           "; LinkedIn: search cards only, job pages queued for Claude to sort"))
     save_checkpoint(state)
 
     isb = load_isb(db)
@@ -118,7 +126,8 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
         t0, rested = time.time(), 0
         for attempt in range(BLOCK_RETRIES + 1):
             for _ in range(3):                        # an internet drop doesn't use up the step
-                summary = run(db, [source], g, locs, since=since, isb=isb, log=log)[source]
+                summary = run(db, [source], g, locs, since=since, isb=isb, log=log,
+                              linkedin_details=details)[source]
                 if summary["status"] in ("success", "pending") or online():
                     break
                 wait_for_internet(log)
@@ -134,7 +143,7 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
         fails[source] = 0 if summary["status"] == "success" else fails.get(source, 0) + 1
         if summary["status"] == "success":
             state["done"].append(key)
-            state["seconds"].setdefault(source, []).append(round(took))
+            state["seconds"].setdefault(timing_key(source, details), []).append(round(took))
         elif summary["status"] == "pending":          # LinkedIn pushed back: stop it, keep the rest
             skip.add(source)
             log(f"  {source} paused for this session; run the backfill again later to continue it")
@@ -149,8 +158,8 @@ def backfill(db, sources, groups=None, locations=None, days=30, restart=False, l
         remaining = [s for s in todo[n:] if s[1] not in skip]
         done = sum(k in state["done"] for k, *_ in plan)
         log(f"  step took {fmt(took)}; {done}/{len(plan)} steps done; "
-            f"about {fmt(eta(state, remaining))} left "
-            f"(finish near {datetime.now() + timedelta(seconds=eta(state, remaining)):%a %H:%M})")
+            f"about {fmt(eta(state, remaining, details))} left "
+            f"(finish near {datetime.now() + timedelta(seconds=eta(state, remaining, details)):%a %H:%M})")
 
     left = [s for s in plan if s[0] not in state["done"]]
     log(f"\nbackfill: {totals['new']} new jobs this session, {totals['failed']} steps failed, "

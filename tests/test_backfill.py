@@ -17,7 +17,7 @@ def test_resumes_and_pauses_linkedin(tmp_path, monkeypatch):
     calls = []
 
     def fake_run(blocked):
-        def _run(db, sources, groups, locations, since, isb, log):
+        def _run(db, sources, groups, locations, since, isb, log, **kw):
             calls.append(sources[0])
             status = "pending" if blocked and sources == ["linkedin"] else "success"
             return {sources[0]: {"status": status, "new": 1}}
@@ -48,7 +48,7 @@ def test_waits_for_internet_and_retries_the_step(tmp_path, monkeypatch):
     net = {"up": False}
     calls = []
 
-    def _run(db, sources, groups, locations, since, isb, log):
+    def _run(db, sources, groups, locations, since, isb, log, **kw):
         calls.append(sources[0])
         return {sources[0]: {"status": "success" if net["up"] else "failed", "new": 0}}
 
@@ -65,7 +65,7 @@ def test_pauses_a_source_that_keeps_failing_online(tmp_path, monkeypatch):
     _setup(tmp_path, monkeypatch)
     calls = []
 
-    def _run(db, sources, groups, locations, since, isb, log):
+    def _run(db, sources, groups, locations, since, isb, log, **kw):
         calls.append(sources[0])
         return {sources[0]: {"status": "failed" if sources == ["naukri"] else "success", "new": 0}}
     monkeypatch.setattr(bf, "run", _run)
@@ -101,7 +101,7 @@ def test_rests_after_a_block_and_carries_on(tmp_path, monkeypatch):
     monkeypatch.setattr(bf.time, "sleep", lambda s: None)
     calls = []
 
-    def _run(db, sources, groups, locations, since, isb, log):
+    def _run(db, sources, groups, locations, since, isb, log, **kw):
         calls.append(sources[0])
         return {sources[0]: {"status": "pending" if len(calls) == 2 else "success", "new": 0}}
 
@@ -117,7 +117,7 @@ def test_recent_window_and_skipped_places(tmp_path, monkeypatch):
         "window_days": 14, "skip_locations": ["Remote (India)"]}})
     seen = []
 
-    def _run(db, sources, groups, locations, since, isb, log):
+    def _run(db, sources, groups, locations, since, isb, log, **kw):
         seen.append((locations[0]["name"], since))
         return {sources[0]: {"status": "success", "new": 0}}
     monkeypatch.setattr(bf, "run", _run)

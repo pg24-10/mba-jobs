@@ -35,6 +35,8 @@ isb_match:
 backfill:
   window_days: 7                     # steps still to run look back this many days (first 33 used 30, then 14)
   skip_locations: ["Remote (India)"] # heaviest searches; the daily runs still cover them
+  linkedin_details: false            # read search cards only; Claude picks which job pages to open
+                                     # (mba-jobs triage-export / triage-import / fill-details)
 
 # LinkedIn pacing (seconds between requests, plus random jitter).
 linkedin:

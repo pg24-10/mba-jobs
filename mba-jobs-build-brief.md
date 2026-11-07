@@ -210,7 +210,7 @@ If a source does not support OR, split that group into single phrases automatica
 
 ## Backfill (one time, on the Mac)
 
-- Command: `mba-jobs backfill --days 30`. Covers all search groups and every source except Naukri (left out on 5 Nov 2026 after repeated blocks; the daily runs collect Naukri). LinkedIn (changed 6 Nov 2026, Pranav): steps still to run look back 14 days (7 days from 7 Nov 2026) and skip Remote (India) to save time; push-backs rest 5, 5, 10, 10, 20, 20, 30, 30 minutes before a step is put off; jobs already saved stay until the normal 30-day stale rule.
+- Command: `mba-jobs backfill --days 30`. Covers all search groups and every source except Naukri (left out on 5 Nov 2026 after repeated blocks; the daily runs collect Naukri). LinkedIn (changed 6 Nov 2026, Pranav): steps still to run look back 14 days (7 days from 7 Nov 2026) and skip Remote (India) to save time; push-backs rest 5, 5, 10, 10, 20, 20, 30, 30 minutes before a step is put off; from 7 Nov 2026 (Pranav) it reads search cards only and saves each job from its card, queues the ones worth opening, Claude sorts them open/skip by title, company and city (`mba-jobs triage-export` / `triage-import`, rules in `config/triage-guide.md`, when unsure open), and `mba-jobs fill-details` opens only the "open" ones at the normal LinkedIn pace; `mba-jobs backfill-auto` runs it all hands-off (steps, rest an hour when paused, then job pages) while an hourly scheduled Claude task sorts the queue (`ops/triage-task-prompt.md`); jobs already saved stay until the normal 30-day stale rule.
 - **Resumable:** checkpoint after each search, so stopping and restarting continues where it left off.
 - Expected time: LinkedIn about 8,000 requests, roughly 6 to 8 hours; other sources about 1 hour. Show progress and an estimated finish time.
 - Tell Pranav to run it overnight with the Mac plugged in, using `caffeinate -i` to keep it awake, on a phone hotspot or home Wi-Fi, not campus Wi-Fi. Data use is about 1 GB.
@@ -296,6 +296,7 @@ If a source does not support OR, split that group into single phrases automatica
 - Create the job-tagger subagent. Run the 50-job Haiku vs Sonnet comparison.
 - **CHECKPOINT:** Pranav picks the model setup.
 - Tag the backfill in one sequential session. Set up `load-tags.yml`.
+- LinkedIn backfill cards: tag jobs Claude marked "open" once `fill-details` has added their description; mark "skip" jobs as less relevant from the title alone (Phase 5 decides whether the site shows them). Move the open/skip sorting into the scheduled tagging task.
 
 **Phase 4: Daily automation**
 - `daily-collect.yml` on GitHub, the Mac checker (`mac/install.sh`), the `mba-jobs linkedin` command.

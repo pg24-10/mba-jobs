@@ -1,6 +1,7 @@
 """Command line: `python -m collector.cli <command>` (or `mba-jobs <command>`)."""
 
 import argparse
+from pathlib import Path
 import sys
 
 from .settings import config
@@ -138,6 +139,44 @@ def cmd_backfill(args):
     sys.exit(0 if done else 2)
 
 
+def cmd_backfill_auto(args):
+    from .auto import run_auto
+    from .db import DB
+    s = config("searches")
+    groups = _pick(s["groups"], args.group, "id")
+    locations = _pick(s["locations"], args.city, "name")
+    ok = run_auto(DB(), groups, locations, days=args.days)
+    sys.exit(0 if ok else 1)
+
+
+def cmd_triage_status(args):
+    from . import triage
+    s = triage.status()
+    print(f"queued {s['queued']}, still to sort {s['to_sort']}, open {s['open']} "
+          f"(filled {s['filled']}), skip {s['skip']}")
+
+
+def cmd_triage_export(args):
+    from . import triage
+    path = Path(args.out) if args.out else triage.DIR / "to-sort.csv"
+    n = triage.export(path, args.limit)
+    print(f"{n} jobs to sort -> {path}")
+
+
+def cmd_triage_import(args):
+    from . import triage
+    saved, problems = triage.import_decisions(Path(args.file))
+    print(f"saved {saved} decisions")
+    for p in problems[:20]:
+        print("  not understood:", p)
+
+
+def cmd_fill_details(args):
+    from . import triage
+    from .db import DB
+    triage.fill_details(DB(), args.limit)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="mba-jobs")
     sub = p.add_subparsers(dest="command", required=True)
@@ -171,6 +210,23 @@ def main(argv=None):
     b.add_argument("--city", nargs="+", help="location names (default: all)")
     b.add_argument("--restart", action="store_true", help="forget the checkpoint and start over")
     b.set_defaults(fn=cmd_backfill)
+
+    ba = sub.add_parser("backfill-auto", help="LinkedIn backfill, then the job pages Claude chose; hands-off")
+    ba.add_argument("--days", type=float, default=30)
+    ba.add_argument("--group", nargs="+", help="search group ids (default: all)")
+    ba.add_argument("--city", nargs="+", help="location names (default: all)")
+    ba.set_defaults(fn=cmd_backfill_auto)
+    sub.add_parser("triage-status", help="how many LinkedIn cards are queued, sorted and filled").set_defaults(fn=cmd_triage_status)
+    te = sub.add_parser("triage-export", help="write the LinkedIn cards still to sort to a CSV for Claude")
+    te.add_argument("--limit", type=int)
+    te.add_argument("--out", help="CSV path (default data/state/triage/to-sort.csv)")
+    te.set_defaults(fn=cmd_triage_export)
+    ti = sub.add_parser("triage-import", help="save Claude's open/skip decisions from a CSV")
+    ti.add_argument("file")
+    ti.set_defaults(fn=cmd_triage_import)
+    fd = sub.add_parser("fill-details", help="open the LinkedIn jobs Claude chose and add their details")
+    fd.add_argument("--limit", type=int)
+    fd.set_defaults(fn=cmd_fill_details)
 
     args = p.parse_args(argv)
     args.fn(args)
