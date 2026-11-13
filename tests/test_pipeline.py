@@ -385,3 +385,4 @@ def test_daily_run_saves_linkedin_per_step_and_marks_time_up_as_pending(monkeypa
     assert summary["linkedin"]["new"] == 2 and summary["linkedin"]["status"] == "pending"
     assert db.updated[-1]["status"] == "pending"                         # window stays put
     assert "carry on from step 1" in db.updated[-1]["errors"]            # Mumbai is next
+

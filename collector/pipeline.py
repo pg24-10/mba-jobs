@@ -481,7 +481,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
                 why = "reached the time limit" if isinstance(e, TimeUp) else f"blocked: {e}"
                 s["status"], s["error"] = "pending", (
                     f"{source} {why}. Left for a later run"
-                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None else "."))
+                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None and catch_up else "."))
                 log(f"  {s['error']} Saving the {len(raws)} jobs not saved yet.")
             store(raws)
             log(f"  {source}: {s['found']} found, {s['kept']} kept ({s['new']} new), dropped {s['dropped']}")

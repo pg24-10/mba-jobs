@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: "23 7 * * *"        # 07:23 UTC = 12:53 PM IST (off the hour, fewer delays)
   workflow_dispatch:
+    inputs:
+      days:
+        description: "Only the last N days (e.g. 1 for a 24-hour test). Leave empty for the normal catch-up."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -38,7 +43,9 @@ jobs:
           cache: pip
       - run: pip install -e .
       - name: Collect
-        run: python -u -m collector.cli daily
+        env:
+          DAYS: ${{ inputs.days }}
+        run: python -u -m collector.cli daily ${DAYS:+--days "$DAYS"}
       - name: Summary on the run page
         if: always()
         run: |
