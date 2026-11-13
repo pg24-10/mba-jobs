@@ -182,6 +182,29 @@ def cmd_triage_import(args):
         print("  not understood:", p)
 
 
+def cmd_tag_status(args):
+    from . import tagging
+    from .db import DB
+    s = tagging.status(DB())
+    print(f"still to tag {s['to_tag']}, tagged {s['tagged']}")
+
+
+def cmd_tag_export(args):
+    from . import tagging
+    from .db import DB
+    n = tagging.export(DB(), args.limit)
+    print(f"{n} jobs to tag -> {tagging.BATCH}")
+
+
+def cmd_tag_import(args):
+    from . import tagging
+    from .db import DB
+    saved, problems = tagging.import_tags(DB())
+    print(f"saved {saved} tags")
+    for p in problems[:50]:
+        print("  not saved:", p)
+
+
 def cmd_fill_details(args):
     from . import triage
     from .db import DB
@@ -239,6 +262,12 @@ def main(argv=None):
     ti = sub.add_parser("triage-import", help="save Claude's open/skip decisions from a CSV")
     ti.add_argument("file")
     ti.set_defaults(fn=cmd_triage_import)
+    sub.add_parser("tag-status", help="how many jobs are still to tag").set_defaults(fn=cmd_tag_status)
+    tx = sub.add_parser("tag-export", help="write the next untagged jobs to data/state/tagging/batch.json")
+    tx.add_argument("--limit", type=int, default=50)
+    tx.set_defaults(fn=cmd_tag_export)
+    sub.add_parser("tag-import", help="check and save data/state/tagging/batch-tagged.json, then delete "
+                   "those jobs' descriptions").set_defaults(fn=cmd_tag_import)
     fd = sub.add_parser("fill-details", help="open the LinkedIn jobs Claude chose and add their details")
     fd.add_argument("--limit", type=int)
     fd.add_argument("--until-done", action="store_true",

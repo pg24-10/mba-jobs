@@ -47,6 +47,10 @@ create table if not exists public.jobs (
   startup_stage     text,                       -- approximate
   fit_score         smallint check (fit_score between 1 and 5),
   summary           text,
+  duties            text[],                     -- Claude's own words
+  looking_for       text[],                     -- Claude's own words
+  key_skills        text[],
+  hands_on          boolean,                    -- feeds the fit score (collector/tagging.py)
   tagged_at         timestamptz,
   tag_model         text
 );
@@ -55,6 +59,8 @@ create index if not exists jobs_source_ids_idx on public.jobs using gin (source_
 create index if not exists jobs_company_key_idx on public.jobs (company_key);
 create index if not exists jobs_posted_at_idx on public.jobs (posted_at desc);
 create index if not exists jobs_untagged_idx on public.jobs (id) where tagged_at is null;
+create index if not exists jobs_to_tag_idx on public.jobs (past_isb_recruiter desc, posted_at desc nulls last)
+  where tagged_at is null and description_trimmed is not null;
 
 create table if not exists public.companies (
   id                  bigint generated always as identity primary key,
@@ -105,7 +111,7 @@ grant select (
   apply_on_company_site, applicants, is_repost, past_isb_recruiter, function, seniority,
   background_wanted, mba_requirement, masters_mentioned, industry,
   industry_experience_required, company_type, startup_stage, fit_score, summary,
-  tagged_at
+  duties, looking_for, key_skills, tagged_at
 ) on public.jobs to anon;
 
 drop policy if exists "anyone can read jobs" on public.jobs;
