@@ -75,6 +75,7 @@ mba-jobs/
     sources/iimjobs.py
     pipeline.py         normalize, filter, dedupe, company tags, save
     cli.py              commands: backfill, daily, linkedin, coverage, learn-boards, isb-coverage
+    coverage.py         campus roles found / company only / missing (report in data/reports/)
   config/
     searches.yaml       search groups and locations (editable without code)
     filters.yaml        exclude words, matched on whole words
@@ -291,6 +292,7 @@ If a source does not support OR, split that group into single phrases automatica
 - Give Pranav the exact backfill command and setup (caffeinate, hotspot). He starts it.
 - When done, run the coverage check against the 125 campus roles, and `mba-jobs isb-coverage` for the past ISB recruiters.
 - **CHECKPOINT:** report total jobs per source, duplicates removed, and the coverage hit rate.
+- Changed 14 Nov 2026 (Pranav): the LinkedIn backfill stops where it is (about 59 of 175 steps; Indeed, IIMjobs and company pages finished) and we move on with the jobs we have. The checkpoint uses those numbers. New order after it: switch on `daily-collect.yml` first so fresh jobs build up while the rest is built; the Mac runs `fill-details` in the background for the LinkedIn jobs Claude marked "open"; then Phase 3, Phase 5, and the rest of Phase 4 (Mac checker, tagging tasks) alongside. Aim to launch about a week later; resume matching may follow just after launch.
 
 **Phase 3: Tagging**
 - Create the job-tagger subagent. Run the 50-job Haiku vs Sonnet comparison.

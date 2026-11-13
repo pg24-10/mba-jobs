@@ -72,7 +72,7 @@ def test_workday_fetch_keeps_india_titles_in_window(monkeypatch):
     monkeypatch.setattr(client, "_post", lambda url, body: listing)
     monkeypatch.setattr(client, "_get", lambda url: {"jobPostingInfo": {
         "title": "Brand Manager", "location": "Bengaluru, India", "jobDescription": "<p>MBA &amp; 3 years</p>",
-        "jobReqId": "R1", "startDate": "2026-11-01", "externalUrl": "https://diageo.wd3.myworkdayjobs.com/x"}})
+        "jobReqId": "R1", "startDate": (datetime.now(timezone.utc) - timedelta(days=2)).date().isoformat(), "externalUrl": "https://diageo.wd3.myworkdayjobs.com/x"}})
     jobs = client.fetch("Diageo", "workday", "diageo.wd3|Diageo_Careers",
                         datetime.now(timezone.utc) - timedelta(days=7))
     assert [j["title"] for j in jobs] == ["Brand Manager"]

@@ -106,6 +106,17 @@ def cmd_isb_coverage(args):
     print(f"  {len(jobs)} ISB jobs in all; full list (gaps first): {out}")
 
 
+def cmd_coverage(args):
+    """How many of the real campus roles the database has (report in data/reports/)."""
+    from .companies import campus_roles
+    from .coverage import run
+    from .db import DB
+    roles = campus_roles()
+    if not roles:
+        sys.exit("reference/campus_roles.xlsx not found")
+    run(DB(), roles)
+
+
 def _pick(items, wanted, field):
     if not wanted:
         return items
@@ -189,6 +200,7 @@ def main(argv=None):
     lb.add_argument("--group", nargs="+", help="search group ids (default: all)")
     lb.set_defaults(fn=cmd_learn_boards)
     sub.add_parser("isb-coverage", help="which past ISB recruiters have jobs (report in data/reports/)").set_defaults(fn=cmd_isb_coverage)
+    sub.add_parser("coverage", help="how many real campus roles the site has (report in data/reports/)").set_defaults(fn=cmd_coverage)
     sub.add_parser("load-companies", help="load reference spreadsheets + watch list into Supabase").set_defaults(fn=cmd_load_companies)
 
     for name, sources, helptext in [

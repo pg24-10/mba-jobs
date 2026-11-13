@@ -44,6 +44,17 @@ def isb_recruiters():
     return [str(r[1]).strip() for r in list(ws.iter_rows(values_only=True))[1:] if r[1] and str(r[1]).strip()]
 
 
+def campus_roles():
+    """[{company, title}] from reference/campus_roles.xlsx (ISB data: stays on the Mac)."""
+    f = REFERENCE / "campus_roles.xlsx"
+    if not f.exists():
+        return []
+    rows = list(openpyxl.load_workbook(f, read_only=True).active.iter_rows(values_only=True))
+    cols = [str(c).strip() if c else "" for c in rows[0]]
+    ci, ti = cols.index("Company Name"), cols.index("Job Title")
+    return [{"company": str(r[ci]).strip(), "title": str(r[ti]).strip()} for r in rows[1:] if r[ti]]
+
+
 def watch_list():
     return config("companies_watch")["companies"] or []
 
