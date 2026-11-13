@@ -134,3 +134,20 @@ def test_auto_gives_up_waiting_when_nobody_sorts(tri, monkeypatch):
     monkeypatch.setattr(auto, "backfill", lambda *a, **k: True)
     triage.queue_cards([{"id": "1", "title": "Product Manager", "company": "Acme"}])
     assert auto.run_auto(None, log=lambda *a: None, sleep=lambda s: None) is False
+
+
+def test_pages_rests_after_a_block_and_finishes(tri, monkeypatch):
+    from collector import auto
+    triage.queue_cards([{"id": "1", "title": "Product Manager", "company": "Acme"}])
+    triage.update_decisions({"1": {"decision": "open"}})
+    calls, sleeps = [], []
+
+    def fill(db, log=print):
+        calls.append(1)
+        if len(calls) == 1:
+            return {"opened": 0, "left": 1, "stopped": "Blocked: 429"}
+        triage.update_decisions({"1": {"filled": "now"}})
+        return {"opened": 1, "left": 0, "stopped": None}
+    monkeypatch.setattr(triage, "fill_details", fill)
+    assert auto.pages(None, log=lambda *a: None, sleep=sleeps.append)
+    assert sleeps == [auto.SESSION_REST] and len(calls) == 2

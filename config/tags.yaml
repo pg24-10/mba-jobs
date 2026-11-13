@@ -1,0 +1,158 @@
+# The values Claude may use when tagging a job (Phase 3, 14 Nov 2026).
+# The website filters use the same lists, so keep the two in step.
+# Each value: id (stored) -> label (shown on the site).
+
+# function: the main work the person will do, not the employer's industry.
+#   Client-facing roles at consulting firms (incl. Big 4 strategy teams) -> consulting.
+#   Back-office or delivery-centre roles at consulting firms (data, MDM, admin) -> operations.
+#   In-house strategy / corporate development -> strategy.
+#   A role running an HR, finance or sales system (ServiceNow, SAP, NetSuite) -> the team it
+#   serves (hr, finance...) if it is mostly process work, technology if mostly building/config.
+#   Area / regional finance manager -> finance. Project administrator / PMO -> program_management.
+#   Business analyst on software projects -> technology.
+function:
+  strategy: Strategy
+  consulting: Consulting
+  product: Product management
+  program_management: Programme / project management
+  general_management: General management / Founder's office / Chief of staff
+  operations: Operations
+  marketing: Marketing / Brand / Category
+  growth: Growth
+  sales_bd: Sales / Business development
+  finance: Corporate finance / FP&A
+  banking: Investment banking / Corporate banking
+  investing: Investing (PE / VC / Equity research / Asset management)
+  analytics: Analytics / Data
+  hr: HR / People
+  supply_chain: Supply chain / Procurement
+  technology: Technology / Engineering management
+  other: Other
+
+# Seniority: if the post states years, use the LOWEST number stated (experience_min)
+# and these cut-offs, whatever the title says:
+#   0-1 entry | 2-3 associate | 4-7 manager | 8-11 senior_manager | 12+ director
+# e.g. "7+ years" -> manager, "8+ years" -> senior_manager, "6-10 years" -> manager.
+# Only when no years are stated, go by the title:
+#   analyst / executive / trainee -> entry; associate / senior analyst / specialist -> associate;
+#   manager / consultant / lead (no "senior"), "Lead <function>" like Lead FP&A -> manager; senior manager / principal / AVP -> senior_manager;
+#   director / head / VP -> director; CXO / MD / partner -> cxo.
+#   "Engineer" or "Business analyst" with no level word -> associate.
+seniority:
+  entry: Entry (analyst, executive; 0-1 years)
+  associate: Associate / Senior analyst (2-3 years)
+  manager: Manager (4-7 years)
+  senior_manager: Senior manager / Lead (8-11 years)
+  director: Director / Head / VP (12+ years)
+  cxo: CXO / Managing director
+
+# background_wanted: 1 to 3 values, the backgrounds the post actually asks for.
+#   mba only when the post names an MBA / PGDM / business degree (so it matches mba_requirement).
+#   ca_finance only when the post asks for CA / CFA / a finance degree or finance experience.
+#   domain when it asks for experience in a named industry (banking, pharma, SaaS...).
+#   any only when the post asks for no particular background.
+background_wanted:
+  mba: MBA / business degree
+  engineering: Engineering
+  ca_finance: CA / CFA / Finance
+  consulting: Consulting experience
+  sales: Sales experience
+  marketing: Marketing experience
+  product: Product experience
+  analytics: Analytics / Data
+  technology: Technology / Software
+  operations: Operations / Supply chain
+  domain: Specific industry experience
+  any: Any background
+
+mba_requirement:
+  required: MBA required
+  preferred: MBA preferred
+  not mentioned: Not mentioned
+
+industry_experience_required:
+  required: Required
+  preferred: Preferred
+  not mentioned: Not mentioned
+
+# industry: the employer's main business, not the role. Examples:
+#   Google, Microsoft, Wipro, Infosys, SAP partners, IT services -> technology
+#   YouTube, Flipkart, Swiggy, eBay -> internet
+#   Big 4, EY, Deloitte, Accenture strategy, ERP consulting firms, staffing and search firms -> consulting
+#   banks, insurers, custodians (Citi, Northern Trust, J.P. Morgan) -> bfsi; PE / VC / AMC -> investing
+#   Cargill, Diageo, Licious, Monster Energy (food, drinks, agri, consumer brands) -> fmcg
+#   Honeywell, engineering and electrical firms -> manufacturing
+# Use other only when none of these is close.
+industry:
+  technology: Technology / Software / SaaS
+  internet: Consumer internet / E-commerce
+  fintech: Fintech
+  bfsi: Banking / Insurance / Financial services
+  investing: Investment firms (PE / VC / Asset management)
+  consulting: Consulting / Professional services
+  fmcg: FMCG / Consumer goods
+  retail: Retail
+  healthcare: Healthcare / Pharma / Life sciences
+  manufacturing: Manufacturing / Industrial / Auto
+  energy: Energy / Utilities / Infrastructure
+  telecom_media: Telecom / Media / Entertainment
+  logistics: Logistics / Mobility
+  education: Education
+  real_estate: Real estate / Construction
+  public_social: Government / Non-profit / Development
+  other: Other
+
+# company_type: the employer, as far as you can tell.
+#   agency whenever the company named is a recruitment / search / staffing firm hiring for
+#   someone else (names with "Consulting", "People Search", "Hunt", "Placement", "HR Services"
+#   that post jobs for a client), even if the client is described.
+#   Indian-headquartered large firms (Wipro, Infosys, Tata, Reliance, Sun Pharma) -> indian_large,
+#   not mnc. mid_size when the size is not known and it is not obviously large.
+company_type:
+  mnc: Multinational
+  indian_large: Large Indian company
+  mid_size: Mid-size company
+  startup: Startup
+  government: Government / PSU
+  nonprofit: Non-profit
+  agency: Recruitment agency (employer not named)
+
+startup_stage:                # only when company_type is startup; approximate
+  early: Early (seed to Series A)
+  growth: Growth (Series B to D)
+  late: Late / Pre-IPO
+
+# hands_on (true / false), asked of Claude: is the role mostly hands-on specialist work?
+#   true for coding, configuring one software tool (SAP, NetSuite, ServiceNow, SuccessFactors) --
+#   including consultants who implement that tool for clients --
+#   lab or plant engineering, accounting entries, collections, data entry, recruiting calls.
+#   false when the work is mostly deciding, planning, managing, advising or owning outcomes.
+
+# fit_score (1-5) is worked out by code (collector/tagging.py), not by Claude:
+#   start from the function (fit_start below), minus 1 if hands_on, minus 1 if seniority is
+#   entry, director or cxo, plus 1 if mba_requirement is required or preferred; kept to 1-5.
+fit_start:
+  strategy: 5
+  consulting: 5
+  product: 5
+  general_management: 5
+  investing: 5
+  banking: 5
+  marketing: 4
+  growth: 4
+  finance: 4
+  program_management: 4
+  analytics: 4
+  operations: 3
+  sales_bd: 3
+  hr: 3
+  supply_chain: 3
+  technology: 2
+  other: 2
+
+fit_score:                    # what each score means on the site
+  5: Classic post-MBA role at the right level
+  4: Good fit, with a small gap
+  3: Possible; MBA skills help but the role is mixed or specialist
+  2: Weak; mostly non-MBA work, or far too junior or senior
+  1: Not a fit

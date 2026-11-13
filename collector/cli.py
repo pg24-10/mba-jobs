@@ -185,6 +185,9 @@ def cmd_triage_import(args):
 def cmd_fill_details(args):
     from . import triage
     from .db import DB
+    if args.until_done:
+        from .auto import pages
+        sys.exit(0 if pages(DB()) else 1)
     triage.fill_details(DB(), args.limit)
 
 
@@ -238,6 +241,8 @@ def main(argv=None):
     ti.set_defaults(fn=cmd_triage_import)
     fd = sub.add_parser("fill-details", help="open the LinkedIn jobs Claude chose and add their details")
     fd.add_argument("--limit", type=int)
+    fd.add_argument("--until-done", action="store_true",
+                    help="rest an hour after a LinkedIn push-back and carry on until every page is open")
     fd.set_defaults(fn=cmd_fill_details)
 
     args = p.parse_args(argv)

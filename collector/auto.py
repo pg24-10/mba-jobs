@@ -39,6 +39,13 @@ def run_auto(db, groups=None, locations=None, days=30, log=print, sleep=time.sle
         log(f"\nauto: resting {SESSION_REST // 60} min before the next backfill session ({session}/{MAX_SESSIONS})")
         sleep(SESSION_REST)
 
+    return pages(db, log, sleep)
+
+
+def pages(db, log=print, sleep=time.sleep):
+    """Open every job page Claude marked "open", resting an hour when LinkedIn
+    pushes back, and wait for Claude while cards are still unsorted.
+    `mba-jobs fill-details --until-done` runs just this part."""
     waited, last_to_sort = 0, None
     while True:
         s = triage.status()
