@@ -6,6 +6,9 @@ Haiku tags jobs in batches of 50 on the Mac:
   Claude      -> data/state/tagging/batch-tagged.json (see .claude/agents/job-tagger.md)
   tag-import  -> checks every tag, works out the fit score, saves it and deletes the
                  job's description (the site keeps only facts and Claude's own words).
+With --parts N the export is split into part1.json .. partN.json so N helpers can tag at
+once (tested 14 Nov: same usage per job, about 4x faster); tag-import --parts saves every
+partK-tagged.json it finds.
 
 The fit score is worked out here, from the tags, so every job gets the same rule.
 """
@@ -64,15 +67,70 @@ def export(db, limit=50, path=BATCH):
     params = {**TO_TAG, "order": "past_isb_recruiter.desc,posted_at.desc.nullslast"}
     if skip:
         params["id"] = f"not.in.({','.join(map(str, skip))})"
-    rows = db._send("GET", f"{db.base}/jobs", timeout=60,
-                    params={**params,
-                            "select": "id,title,company,location_city,description_trimmed"},
-                    headers={"Range": f"0-{limit - 1}"})
+    rows = []
+    while len(rows) < limit:                      # the database hands out at most 1,000 rows a time
+        start = len(rows)
+        page = db._send("GET", f"{db.base}/jobs", timeout=60,
+                        params={**params,
+                                "select": "id,title,company,location_city,description_trimmed"},
+                        headers={"Range": f"{start}-{min(limit, start + 1000) - 1}"})
+        rows += page
+        if not page or len(rows) % 1000:
+            break
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([{"id": r["id"], "title": r["title"], "company": r["company"],
                                  "city": r["location_city"], "description": r["description_trimmed"]}
                                 for r in rows], indent=1, ensure_ascii=False))
     return len(rows)
+
+
+def _part(i, tagged=False):
+    return DIR / f"part{i}{'-tagged' if tagged else ''}.json"
+
+
+def _old_parts():
+    return sorted(DIR.glob("part*.json"))
+
+
+def export_parts(db, parts, size=50):
+    """Write the next parts*size jobs as part1.json .. partN.json. Returns the jobs per part.
+    Refuses while earlier parts are still waiting to be imported."""
+    if _old_parts():
+        raise RuntimeError("earlier part files are still there; run tag-import --parts first")
+    n = export(db, parts * size, DIR / "all.json")
+    jobs = json.loads((DIR / "all.json").read_text())
+    counts = []
+    for i in range(parts):
+        chunk = jobs[i * size:(i + 1) * size]
+        if chunk:
+            _part(i + 1).write_text(json.dumps(chunk, indent=1, ensure_ascii=False))
+            counts.append(len(chunk))
+    (DIR / "all.json").unlink()
+    return counts
+
+
+def import_parts(db, log=print):
+    """Import every partK-tagged.json, then remove that part's files. Parts with no tags
+    yet are left for a later run. Returns (saved, problems, parts left)."""
+    saved, problems, left = 0, [], 0
+    for batch in sorted(DIR.glob("part*.json")):
+        if batch.stem.endswith("-tagged"):
+            continue
+        out = batch.with_name(batch.stem + "-tagged.json")
+        if not out.exists():
+            left += 1
+            continue
+        try:
+            n, p = import_tags(db, out, batch)
+        except json.JSONDecodeError:
+            problems.append(f"{out.name}: not valid JSON, part left as it is")
+            left += 1
+            continue
+        saved += n
+        problems += p
+        batch.unlink()
+        out.unlink()
+    return saved, problems, left
 
 
 def _words(text):

@@ -83,3 +83,25 @@ def test_import_saves_good_tags_deletes_descriptions_and_counts_refusals(tmp_pat
     match, values = db.updates[0]
     assert match == {"id": 1} and values["description_trimmed"] is None and values["tagged_at"]
     assert json.loads((tmp_path / "failed.json").read_text()) == {"2": 1}
+
+
+def test_parts_export_and_import(tmp_path, monkeypatch):
+    monkeypatch.setattr(tagging, "DIR", tmp_path)
+    monkeypatch.setattr(tagging, "FAILED", tmp_path / "failed.json")
+    jobs = [{"id": i, "title": "PM", "company": "X", "city": "Pune", "description": POST} for i in (1, 2, 3)]
+
+    def fake_export(db, limit, path):
+        path.write_text(json.dumps(jobs[:limit]))
+        return min(limit, 3)
+    monkeypatch.setattr(tagging, "export", fake_export)
+    assert tagging.export_parts(None, 2, size=2) == [2, 1]
+    try:
+        tagging.export_parts(None, 2, size=2)
+        assert False, "should refuse while parts are waiting"
+    except RuntimeError:
+        pass
+    (tmp_path / "part1-tagged.json").write_text(json.dumps([GOOD, {**GOOD, "id": 2}]))
+    db = FakeDB()
+    saved, problems, left = tagging.import_parts(db)
+    assert (saved, problems, left) == (2, [], 1)
+    assert not (tmp_path / "part1.json").exists() and (tmp_path / "part2.json").exists()

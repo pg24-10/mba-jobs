@@ -10,6 +10,8 @@
 #   serves (hr, finance...) if it is mostly process work, technology if mostly building/config.
 #   Area / regional finance manager -> finance. Project administrator / PMO -> program_management.
 #   Business analyst on software projects -> technology.
+#   Consultants who implement or configure one software product for clients (SAP FICO, SAP GRC,
+#   Oracle, Salesforce, ServiceNow, Workday) -> technology, whatever module it is, and hands_on true.
 function:
   strategy: Strategy
   consulting: Consulting
@@ -29,13 +31,17 @@ function:
   technology: Technology / Engineering management
   other: Other
 
-# Seniority: if the post states years, use the LOWEST number stated (experience_min)
+# Seniority: if the post states years, use the LOWEST number of the range ("6-10 years" -> 6)
 # and these cut-offs, whatever the title says:
 #   0-1 entry | 2-3 associate | 4-7 manager | 8-11 senior_manager | 12+ director
 # e.g. "7+ years" -> manager, "8+ years" -> senior_manager, "6-10 years" -> manager.
+# If the years depend on the degree (e.g. doctorate 2, master's 6, bachelor's 8), use the
+# bachelor's figure, not the lowest.
+# If the post asks for several separate amounts (e.g. "8+ years overall, 3+ years managing people"),
+# use the overall / total figure; if there is no overall figure, use the largest one.
 # Only when no years are stated, go by the title:
 #   analyst / executive / trainee -> entry; associate / senior analyst / specialist -> associate;
-#   manager / consultant / lead (no "senior"), "Lead <function>" like Lead FP&A -> manager; senior manager / principal / AVP -> senior_manager;
+#   senior consultant -> manager; manager / consultant / lead (no "senior"), "Lead <function>" like Lead FP&A -> manager; senior manager / principal / AVP -> senior_manager;
 #   director / head / VP -> director; CXO / MD / partner -> cxo.
 #   "Engineer" or "Business analyst" with no level word -> associate.
 seniority:
@@ -65,6 +71,9 @@ background_wanted:
   domain: Specific industry experience
   any: Any background
 
+# mba_requirement: required only when an MBA / PGDM is the one degree asked for.
+#   When an MBA is one option among others ("CA / MBA / master's", "MBA or equivalent
+#   experience", "graduate; MBA a plus") -> preferred.
 mba_requirement:
   required: MBA required
   preferred: MBA preferred
@@ -125,7 +134,7 @@ startup_stage:                # only when company_type is startup; approximate
 # hands_on (true / false), asked of Claude: is the role mostly hands-on specialist work?
 #   true for coding, configuring one software tool (SAP, NetSuite, ServiceNow, SuccessFactors) --
 #   including consultants who implement that tool for clients --
-#   lab or plant engineering, accounting entries, collections, data entry, recruiting calls.
+#   lab or plant engineering, network or field deployment, accounting entries, collections, data entry, recruiting calls.
 #   false when the work is mostly deciding, planning, managing, advising or owning outcomes.
 
 # fit_score (1-5) is worked out by code (collector/tagging.py), not by Claude:

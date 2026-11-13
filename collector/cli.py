@@ -192,6 +192,10 @@ def cmd_tag_status(args):
 def cmd_tag_export(args):
     from . import tagging
     from .db import DB
+    if args.parts:
+        counts = tagging.export_parts(DB(), args.parts, args.limit)
+        print(f"{sum(counts)} jobs to tag in {len(counts)} parts -> {tagging.DIR}/part1..{len(counts)}.json")
+        return
     n = tagging.export(DB(), args.limit)
     print(f"{n} jobs to tag -> {tagging.BATCH}")
 
@@ -199,8 +203,12 @@ def cmd_tag_export(args):
 def cmd_tag_import(args):
     from . import tagging
     from .db import DB
-    saved, problems = tagging.import_tags(DB())
-    print(f"saved {saved} tags")
+    if args.parts:
+        saved, problems, left = tagging.import_parts(DB())
+        print(f"saved {saved} tags, refused {len(problems)}, parts not tagged yet {left}")
+    else:
+        saved, problems = tagging.import_tags(DB())
+        print(f"saved {saved} tags")
     for p in problems[:50]:
         print("  not saved:", p)
 
@@ -264,10 +272,13 @@ def main(argv=None):
     ti.set_defaults(fn=cmd_triage_import)
     sub.add_parser("tag-status", help="how many jobs are still to tag").set_defaults(fn=cmd_tag_status)
     tx = sub.add_parser("tag-export", help="write the next untagged jobs to data/state/tagging/batch.json")
-    tx.add_argument("--limit", type=int, default=50)
+    tx.add_argument("--limit", type=int, default=50, help="jobs per batch (per part with --parts)")
+    tx.add_argument("--parts", type=int, help="split into this many parts, one per helper")
     tx.set_defaults(fn=cmd_tag_export)
-    sub.add_parser("tag-import", help="check and save data/state/tagging/batch-tagged.json, then delete "
-                   "those jobs' descriptions").set_defaults(fn=cmd_tag_import)
+    ti2 = sub.add_parser("tag-import", help="check and save data/state/tagging/batch-tagged.json, then delete "
+                         "those jobs' descriptions")
+    ti2.add_argument("--parts", action="store_true", help="import every partK-tagged.json instead")
+    ti2.set_defaults(fn=cmd_tag_import)
     fd = sub.add_parser("fill-details", help="open the LinkedIn jobs Claude chose and add their details")
     fd.add_argument("--limit", type=int)
     fd.add_argument("--until-done", action="store_true",
