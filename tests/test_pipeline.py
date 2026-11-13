@@ -269,3 +269,119 @@ def test_naukri_search_row_keeps_its_description():
     post = n._process_job(row)
     assert "pricing" in post.description and "<p>" not in post.description
     assert post.skills == ["Pricing", "Strategy"]
+
+
+# ------------------------------------------------ LinkedIn steps, time limit, carry-over
+
+def _step_li(block_at=None):
+    """Fake LinkedIn: each search returns one card named after the city; the
+    `block_at`-th search raises TimeUp."""
+    from collector import pipeline
+
+    class LI:
+        requests = blocks = 0
+        searches = []
+
+        def __init__(self, log): pass
+
+        def search(self, query, place, seconds, extra=None):
+            LI.searches.append(place)
+            if len(LI.searches) == block_at:
+                raise pipeline.TimeUp("time limit")
+            yield {"id": place, "title": "Product Manager", "company": "Acme", "location": place, "posted": None}
+
+        def detail(self, i):
+            return {"description": "d"}
+    return LI
+
+
+_GROUPS = [{"id": "product", "query": '"product manager"'}]
+_LOCS = [{"name": c, "linkedin": c} for c in ("Mumbai", "Pune", "Delhi")]
+
+
+def test_linkedin_saves_each_step_and_starts_where_told(monkeypatch):
+    from collector import pipeline
+    LI = _step_li()
+    monkeypatch.setattr(pipeline, "LinkedIn", LI)
+    batches = []
+    out = pipeline.collect_linkedin(_KnownDB(), _GROUPS, _LOCS, pipeline.now() - pipeline.timedelta(days=1),
+                                    log=lambda *a: None, flush=batches.append, first_step=1)
+    assert LI.searches == ["Pune", "Delhi", "Mumbai"]                    # wraps round
+    assert [[r["source_id"] for r in b] for b in batches] == [["linkedin:Pune"], ["linkedin:Delhi"],
+                                                              ["linkedin:Mumbai"]]
+    assert out == []                                                     # all handed to flush
+
+
+def test_linkedin_time_up_keeps_finished_steps_and_says_where_to_resume(monkeypatch):
+    import pytest
+    from collector import pipeline
+    monkeypatch.setattr(pipeline, "LinkedIn", _step_li(block_at=2))
+    batches = []
+    with pytest.raises(pipeline.TimeUp) as e:
+        pipeline.collect_linkedin(_KnownDB(), _GROUPS, _LOCS, pipeline.now() - pipeline.timedelta(days=1),
+                                  log=lambda *a: None, flush=batches.append)
+    assert [[r["source_id"] for r in b] for b in batches] == [["linkedin:Mumbai"], []]
+    assert e.value.next_step == 1                                        # Pune again next time
+
+
+def test_linkedin_client_stops_at_deadline_instead_of_resting(monkeypatch):
+    import pytest
+    from collector.sources import TimeUp
+    from collector.sources import linkedin
+    li = linkedin.LinkedIn(log=lambda *a: None)
+    li.deadline = linkedin.time.time() + 60                               # one minute left
+    with pytest.raises(TimeUp):
+        li._push_back(429)                                               # the first rest is 5 min
+    li.deadline = linkedin.time.time() - 1
+    with pytest.raises(TimeUp):
+        li._get("https://example.invalid")                               # no request once time is up
+
+
+class _RunsDB(_KnownDB):
+    def __init__(self, last=None):
+        super().__init__()
+        self.last, self.inserted, self.updated, self.upserts = last, [], [], []
+
+    def select(self, table, params):
+        if params.get("status") == "eq.success":                         # window_start: no success yet
+            return []
+        return [self.last] if self.last else []
+
+    def insert(self, table, row):
+        self.inserted.append(row)
+        return {"run_id": len(self.inserted)}
+
+    def update(self, table, match, values):
+        self.updated.append(values)
+
+    def upsert_jobs(self, rows):
+        self.upserts.append(rows)
+        return [{"dedupe_key": r["dedupe_key"], "id": n, "is_new": True} for n, r in enumerate(rows)]
+
+    def rpc(self, name):
+        return 0
+
+
+def test_next_linkedin_step_reads_the_last_stopped_run():
+    from collector import pipeline
+    assert pipeline.next_linkedin_step(_RunsDB()) == 0
+    assert pipeline.next_linkedin_step(_RunsDB({"status": "success", "errors": None})) == 0
+    stopped = {"status": "pending", "errors": "linkedin reached the time limit. Left for a later run "
+                                              "(carry on from step 7)."}
+    assert pipeline.next_linkedin_step(_RunsDB(stopped)) == 6
+
+
+def test_daily_run_saves_linkedin_per_step_and_marks_time_up_as_pending(monkeypatch, tmp_path):
+    from collector import pipeline
+    monkeypatch.setattr(pipeline, "LinkedIn", _step_li(block_at=3))
+    monkeypatch.setattr(pipeline, "learn_boards", lambda *a, **k: None)
+    monkeypatch.setattr(pipeline, "write_inbox", lambda items: None)
+    monkeypatch.setattr(pipeline, "write_run_log", lambda summary: None)
+    monkeypatch.setattr(pipeline, "UNSAVED", tmp_path / "unsaved")
+    stopped = {"status": "pending", "errors": "linkedin blocked: 429. Left for a later run (carry on from step 2)."}
+    db = _RunsDB(stopped)
+    summary = pipeline.run(db, ["linkedin"], _GROUPS, _LOCS, isb=ISB, log=lambda *a: None)
+    assert len(db.upserts) == 2                                          # Pune, Delhi saved one by one
+    assert summary["linkedin"]["new"] == 2 and summary["linkedin"]["status"] == "pending"
+    assert db.updated[-1]["status"] == "pending"                         # window stays put
+    assert "carry on from step 1" in db.updated[-1]["errors"]            # Mumbai is next

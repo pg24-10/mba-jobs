@@ -18,7 +18,7 @@ import requests
 
 from ..net import online, wait_until_online
 from ..settings import config
-from . import Blocked, NetworkDown
+from . import Blocked, NetworkDown, TimeUp
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
@@ -92,6 +92,11 @@ class LinkedIn:
             "Accept-Language": "en-US,en;q=0.9",
         })
         self._last = 0.0
+        self.deadline = None          # time.time() value; past it, stop with TimeUp
+
+    def _time_left(self, needed=0.0):
+        if self.deadline and time.time() + needed >= self.deadline:
+            raise TimeUp("time limit for this run reached")
 
     def _get(self, url, params=None):
         """GET with pacing and back-off. Returns body text, or None for a 4xx/5xx.
@@ -99,11 +104,13 @@ class LinkedIn:
         (never a silent "no results"). LinkedIn going quiet counts as a push-back."""
         timeouts = 0
         while True:
+            self._time_left()
             pause = max(self.min_delay, self.wait + random.uniform(-0.5, 0.8))
             time.sleep(max(0.0, self._last + pause - time.time()))
             self._last = time.time()
             self.requests += 1
             if self.rest_every and self.requests % self.rest_every == 0:
+                self._time_left(self.rest_minutes * 60)
                 self.log(f"  {self.requests} LinkedIn requests: short {self.rest_minutes:.0f}-minute break")
                 time.sleep(self.rest_minutes * 60)
             try:
@@ -146,6 +153,7 @@ class LinkedIn:
         if self.blocks > len(self.block_rests):
             raise Blocked(f"{self.blocks} blocks (last: {why})")
         rest = self.block_rests[self.blocks - 1]
+        self._time_left(rest)
         self.log(f"  resting {rest / 60:.0f} minutes before trying LinkedIn again")
         time.sleep(rest)
 

@@ -238,7 +238,7 @@ def main(argv=None):
     sub.add_parser("load-companies", help="load reference spreadsheets + watch list into Supabase").set_defaults(fn=cmd_load_companies)
 
     for name, sources, helptext in [
-        ("daily", ["linkedin", "indeed", "naukri", "iimjobs", "ats"], "the daily run (catches up from the last success)"),
+        ("daily", ["iimjobs", "indeed", "naukri", "ats", "linkedin"], "the daily run (catches up from the last success; LinkedIn last, it is the slowest)"),
         ("linkedin", ["linkedin"], "LinkedIn only (the Mac fallback)"),
         ("collect", ["linkedin", "indeed", "naukri", "iimjobs"], "custom run, e.g. a small test"),
     ]:

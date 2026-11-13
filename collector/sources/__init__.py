@@ -10,3 +10,8 @@ class Blocked(Exception):
     def __init__(self, message, partial=None):
         super().__init__(message)
         self.partial = partial or []
+
+
+class TimeUp(Blocked):
+    """The run's time limit came (GitHub stops a job after a few hours): stop cleanly and
+    save, like a block, so the next run carries on from the same window."""

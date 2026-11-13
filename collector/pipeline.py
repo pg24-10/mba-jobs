@@ -5,6 +5,7 @@ save their jobs and the failure is written to `runs`.
 """
 
 import json
+import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,7 @@ from .companies import IsbMatcher
 from .settings import INBOX, LOGS, STATE, config, machine
 from .sources import ats as ats_source
 from .sources import iimjobs as iimjobs_source
-from .sources import Blocked, jobspy_sources
+from .sources import Blocked, TimeUp, jobspy_sources
 from .sources.linkedin import LinkedIn, to_raw as linkedin_raw
 from .text import (big_board_title_ok, city_of, company_key, excluded_by, experience_range, fold,
                    is_vague, looks_like_agency, title_key, to_lpa, trim_requirements, work_mode_of)
@@ -138,31 +139,73 @@ def merge(rows):
 
 # ------------------------------------------------------------------ sources
 
-def collect_linkedin(db, groups, locations, since, log, details=True):
+def collect_linkedin(db, groups, locations, since, log, details=True, flush=None,
+                     first_step=0, deadline=None):
     """details=False (the backfill): save every job from its search card and queue the
-    ones worth opening for Claude to sort (collector/triage.py) instead of opening them."""
+    ones worth opening for Claude to sort (collector/triage.py) instead of opening them.
+
+    Works one step at a time (one search group in one city) and hands each step's jobs
+    to `flush` as soon as the step is done, so a block or the time limit never loses
+    finished work. Starts at `first_step` and wraps round, so a run that stopped part-way
+    is picked up where it left off. On Blocked / TimeUp, `e.next_step` is the step to
+    start from next time. Without `flush`, returns all jobs (and e.partial on a block)."""
     li = LinkedIn(log=log)
+    li.deadline = deadline
     seconds = (now() - since).total_seconds()
+    steps = [(g, loc) for g in groups for loc in locations]
+    first = first_step if 0 < first_step < len(steps) else 0
+    if first:
+        log(f"  linkedin: carrying on from step {first + 1} of {len(steps)} (the last run stopped there)")
+    out = []
+    emit = flush or out.extend
+    seen = set()                                          # one job found in two steps: once
+    for idx in list(range(first, len(steps))) + list(range(first)):
+        g, loc = steps[idx]
+        raws = []
+        try:
+            cards = _linkedin_step(li, g, loc, seconds, log)
+            for i in seen & cards.keys():
+                del cards[i]
+            seen |= cards.keys()
+            _linkedin_raws(db, li, cards, details, raws, log, f"{g['id']} / {loc['name']}")
+        except Blocked as e:                              # keep the details fetched so far
+            emit(raws)
+            e.partial, e.next_step = out, idx
+            log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs; "
+                f"stopped at step {idx + 1} of {len(steps)}")
+            raise
+        emit(raws)
+    log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs")
+    return out
+
+
+def _linkedin_step(li, g, loc, seconds, log):
+    """Search cards for one group in one city, split phrase by phrase past the cap."""
     cards = {}
-    for g in groups:
-        for loc in locations:
-            extra = loc.get("linkedin_extra") or {}
-            places = loc["linkedin"] if isinstance(loc["linkedin"], list) else [loc["linkedin"]]
-            n = 0
-            for place in places:
-                found = _linkedin_search(li, cards, g["query"], place, loc["name"], seconds, extra)
-                phrases = jobspy_sources.split_or(g["query"])
-                if found >= LINKEDIN_CAP and len(phrases) > 1:
-                    # LinkedIn stops at 1,000 results (and ignores its filters when logged
-                    # out), so search each phrase on its own: each gets its own 1,000
-                    log(f"  linkedin {g['id']} / {place}: hit the 1,000 cap, searching phrase by phrase")
-                    found = sum(_linkedin_search(li, cards, p, place, loc["name"], seconds, extra)
-                                for p in phrases)
-                n += found
-            log(f"  linkedin {g['id']} / {loc['name']}: {n} cards ({li.requests} requests so far)")
+    extra = loc.get("linkedin_extra") or {}
+    places = loc["linkedin"] if isinstance(loc["linkedin"], list) else [loc["linkedin"]]
+    n = 0
+    for place in places:
+        found = _linkedin_search(li, cards, g["query"], place, loc["name"], seconds, extra)
+        phrases = jobspy_sources.split_or(g["query"])
+        if found >= LINKEDIN_CAP and len(phrases) > 1:
+            # LinkedIn stops at 1,000 results (and ignores its filters when logged
+            # out), so search each phrase on its own: each gets its own 1,000
+            log(f"  linkedin {g['id']} / {place}: hit the 1,000 cap, searching phrase by phrase")
+            found = sum(_linkedin_search(li, cards, p, place, loc["name"], seconds, extra)
+                        for p in phrases)
+        n += found
+    log(f"  linkedin {g['id']} / {loc['name']}: {n} cards ({li.requests} requests so far)")
+    return cards
+
+
+def _linkedin_raws(db, li, cards, details, raws, log, label):
+    """Turn one step's cards into raw jobs (appended to `raws` as they are made)."""
     # details (description, industry) only for new jobs whose title looks like the
     # searches; the rest are saved from the card alone. Each detail is one request.
     keep = {i: c for i, c in cards.items() if not excluded_by(c["title"])}
+    if not keep:
+        return
     known = {s.split(":", 1)[1] for s in db.known_source_ids(f"linkedin:{i}" for i in keep)}
     todo = {i for i in keep if i not in known and big_board_title_ok(keep[i]["title"])}
     todo -= {s.split(":", 1)[1] for s in not_worth_opening(db, [linkedin_raw(keep[i]) | {"search_city": keep[i]["search_city"]}
@@ -170,27 +213,20 @@ def collect_linkedin(db, groups, locations, since, log, details=True):
     if not details:
         from . import triage
         triage.queue_cards([keep[i] | {"id": i} for i in sorted(todo)])
-        log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
-            f"{len(keep) - len(known)} new, {len(todo)} worth opening -> queued for Claude to sort")
+        if todo:
+            log(f"    {label}: {len(keep) - len(known)} new, {len(todo)} worth opening -> queued for Claude")
         todo = set()
-    else:
-        log(f"  linkedin: {len(cards)} cards, {len(keep)} after title filter, "
-            f"{len(keep) - len(known)} new, {len(todo)} worth opening -> fetching details")
-    raws, opened = [], 0
+    elif todo:
+        log(f"    {label}: {len(keep) - len(known)} new, {len(todo)} worth opening -> fetching details")
+    opened = 0
     for i in sorted(keep, key=lambda i: i not in todo):      # the ones to open first
-        try:
-            info = li.detail(i) if i in todo else None
-        except Blocked as e:                                 # keep the details fetched so far
-            e.partial = raws
-            raise
+        info = li.detail(i) if i in todo else None
         opened += i in todo
         raw = linkedin_raw(keep[i], info)
         raw["search_city"] = keep[i]["search_city"]
         raws.append(raw)
         if i in todo and opened % 50 == 0:
             log(f"    details: {opened}/{len(todo)}")
-    log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs")
-    return raws
 
 
 LINKEDIN_CAP = 990                  # LinkedIn never returns more than 1,000 per search
@@ -399,27 +435,15 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
         s = summary[source] = {"status": "failed", "found": 0, "kept": 0, "new": 0,
                                "dropped": {}, "error": None}
         run_id = None
-        try:
-            start = since or (now() - timedelta(days=days) if days else window_start(db, source))
-            run_id = db.insert("runs", {"machine": machine(), "source": source,
-                                        "window_start": start.isoformat(),
-                                        "linkedin_route": "direct" if source == "linkedin" else None})["run_id"]
-            log(f"{source}: since {start:%Y-%m-%d %H:%M} UTC")
-            raws = []
-            try:
-                raws = collect(db, source, groups, locations, start, log, linkedin_details)
-                s["status"] = "success"
-            except Blocked as e:                 # save what was finished; the rest waits
-                raws = e.partial
-                s["status"], s["error"] = "pending", f"{source} blocked: {e}. Left for a later run."
-                log(f"  {s['error']} Saving the {len(raws)} jobs finished before the block.")
 
+        def store(raws, source=source, s=s):
+            """Normalize and save a batch of this source's jobs now, so a later
+            failure, block or time limit cannot lose them."""
             if source != "ats":
                 try:
                     learn_boards(db, raws, log)
                 except Exception as e:           # nice to have; never fail the source over it
                     log(f"  could not learn careers pages: {e}")
-
             rows = []
             for raw in raws:
                 row, reason = normalize(raw, isb)
@@ -428,14 +452,39 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
                 else:
                     why = reason.split(":")[0]
                     s["dropped"][why] = s["dropped"].get(why, 0) + 1
-            # save this source now, so a later failure cannot lose it
             merged = merge(rows)
             saved = save(db, merged, source, log)
             by_key = {r["dedupe_key"]: r for r in merged}
             new = [r for r in saved if r["is_new"]]
-            inbox_items += [inbox_item(by_key[r["dedupe_key"]], r["id"]) for r in new]
-            s.update(found=len(raws), kept=len(rows), new=len(new))
-            log(f"  {source}: {len(raws)} found, {len(rows)} kept ({len(new)} new), dropped {s['dropped']}")
+            inbox_items.extend(inbox_item(by_key[r["dedupe_key"]], r["id"]) for r in new)
+            s.update(found=s["found"] + len(raws), kept=s["kept"] + len(rows), new=s["new"] + len(new))
+
+        try:
+            catch_up = not since and not days
+            start = since or (now() - timedelta(days=days) if days else window_start(db, source))
+            run_id = db.insert("runs", {"machine": machine(), "source": source,
+                                        "window_start": start.isoformat(),
+                                        "linkedin_route": "direct" if source == "linkedin" else None})["run_id"]
+            log(f"{source}: since {start:%Y-%m-%d %H:%M} UTC")
+            raws = []
+            try:
+                if source == "linkedin":
+                    raws = collect_linkedin(db, groups, locations, start, log, details=linkedin_details,
+                                            flush=store, deadline=deadline(),
+                                            first_step=next_linkedin_step(db) if catch_up else 0)
+                else:
+                    raws = collect(db, source, groups, locations, start, log, linkedin_details)
+                s["status"] = "success"
+            except Blocked as e:                 # save what was finished; the rest waits
+                raws = e.partial
+                stop = getattr(e, "next_step", None)
+                why = "reached the time limit" if isinstance(e, TimeUp) else f"blocked: {e}"
+                s["status"], s["error"] = "pending", (
+                    f"{source} {why}. Left for a later run"
+                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None else "."))
+                log(f"  {s['error']} Saving the {len(raws)} jobs not saved yet.")
+            store(raws)
+            log(f"  {source}: {s['found']} found, {s['kept']} kept ({s['new']} new), dropped {s['dropped']}")
         except Exception as e:
             s["status"], s["error"] = "failed", f"{type(e).__name__}: {e}"
             log(f"  {source} FAILED: {s['error']}")
@@ -460,6 +509,28 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
     return summary
 
 
+NEXT_STEP = "carry on from step"
+
+
+def next_linkedin_step(db):
+    """Where the last LinkedIn catch-up stopped (0-based), if it stopped part-way."""
+    rows = db.select("runs", {"select": "status,errors", "source": "eq.linkedin",
+                              "finished_at": "not.is.null", "order": "finished_at.desc", "limit": "1"})
+    if rows and rows[0]["status"] == "pending":
+        m = re.search(NEXT_STEP + r" (\d+)", rows[0]["errors"] or "")
+        if m:
+            return int(m.group(1)) - 1
+    return 0
+
+
+def deadline():
+    """time.time() at which collecting must stop, from COLLECT_TIME_LIMIT_MINUTES
+    (set on GitHub, which stops a job after a few hours), counted from this run's start."""
+    minutes = os.environ.get("COLLECT_TIME_LIMIT_MINUTES")
+    return STARTED + float(minutes) * 60 if minutes else None
+
+
+STARTED = time.time()
 UNSAVED = STATE / "unsaved"
 
 
