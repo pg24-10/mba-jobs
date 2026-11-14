@@ -36,14 +36,17 @@ def _shard_machine(shard):
 def window_start(db, source, default_days=1, shard=None):
     """Catch up from the last successful run of this source (any machine). A split
     machine (shard K/N) also counts its own last finished run ("partial"), so each of
-    the N machines catches up on its own searches."""
+    the N machines catches up on its own searches. Never further back than
+    max_window_days (or max_window_days_by_source for this source)."""
     params = {"select": "finished_at", "source": f"eq.{source}", "status": "eq.success",
               "order": "finished_at.desc", "limit": "1"}
     if shard:
         del params["status"]
         params["or"] = f"(status.eq.success,and(status.eq.partial,machine.{_shard_machine(shard)}))"
     rows = db.select("runs", params)
-    oldest = now() - timedelta(days=config("settings")["max_window_days"])
+    settings = config("settings")
+    days = (settings.get("max_window_days_by_source") or {}).get(source, settings["max_window_days"])
+    oldest = now() - timedelta(days=days)
     if not rows or not rows[0]["finished_at"]:
         return max(oldest, now() - timedelta(days=default_days))
     last = datetime.fromisoformat(rows[0]["finished_at"])

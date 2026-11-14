@@ -445,3 +445,13 @@ def test_split_machines_catch_up_from_their_own_last_run():
     assert "machine.like.* 3/10" in db.params["or"] and "status" not in db.params
     pipeline.window_start(db, "linkedin")
     assert db.params["status"] == "eq.success"
+
+
+def test_naukri_never_looks_back_more_than_a_day():
+    from datetime import timedelta
+    from collector import pipeline
+    old = [{"finished_at": "2026-11-04T10:00:00+00:00"}]               # last success long ago
+    start = pipeline.window_start(_ParamsDB(old), "naukri", shard=(2, 5))
+    assert pipeline.now() - start <= timedelta(days=1, seconds=5)
+    start = pipeline.window_start(_ParamsDB(old), "indeed")             # others still catch up
+    assert pipeline.now() - start > timedelta(days=5)

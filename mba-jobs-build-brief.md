@@ -139,6 +139,8 @@ If a source does not support OR, split that group into single phrases automatica
 - Known limits: about 10 results per request (verify the `start` step), about 1,000 results per search. The guest search ignores experience-level, workplace and job-type filters, so do that filtering ourselves.
 - Pace: 2 to 3 seconds between requests, with random jitter. Never faster than 1.5 seconds. On a 429 or 999, back off (double the wait), and after repeated blocks stop LinkedIn for this run and mark it "pending".
 - **Parallel-machine trial (decided 14 Nov 2026, Pranav):** one hand-started test of LinkedIn and Naukri each split across 5 GitHub machines (every 5th search each, normal pace, 3 h, `.github/workflows/parallel-trial.yml`), to see whether it gets blocked. Each machine stops for good on a block. Daily runs stay one machine per site unless Pranav decides otherwise after the trial.
+- **Daily split (decided 14 Nov 2026, Pranav):** daily runs split LinkedIn across 10 machines and Naukri across 5. Naukri only ever looks back 1 day (`max_window_days_by_source` in `config/settings.yaml`): its captcha stopped long catch-ups, and missed Naukri days are not worth chasing.
+- **LinkedIn jobs without a description (checked 14 Nov 2026):** about 8,200, but on purpose: about 6,400 have titles outside the searches, about 1,650 Claude already chose to skip, 25 pages are gone. Only about 100 were never looked at. No bulk fill needed.
 - Fetch the detail page only for jobs that pass the exclude filter.
 - Use JobSpy's LinkedIn code as a reference for parsing if helpful (speedyapply/JobSpy, MIT).
 

@@ -79,6 +79,9 @@ jobspy:
 
 # Longest catch-up window if earlier runs failed.
 max_window_days: 30
+# Shorter for these sources: Naukri's captcha stops long catch-ups, and a missed
+# day there is not worth chasing, so it only ever looks back 1 day.
+max_window_days_by_source: {naukri: 1}
 
 # Characters of each description kept for Claude (deleted after tagging).
 description_chars: 2500
