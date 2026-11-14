@@ -134,7 +134,10 @@ def cmd_collect(args):
     s = config("searches")
     groups = _pick(s["groups"], args.group, "id")
     locations = _pick(s["locations"], args.city, "name")
-    summary = run(DB(), args.sources, groups, locations, days=args.days)
+    shard = tuple(map(int, args.shard.split("/"))) if args.shard else None
+    if shard and not (len(shard) == 2 and 1 <= shard[0] <= shard[1]):
+        sys.exit("--shard takes K/N, e.g. 2/5")
+    summary = run(DB(), args.sources, groups, locations, days=args.days, shard=shard)
     failed = [k for k, v in summary.items() if v["status"] == "failed"]
     sys.exit(1 if failed and len(failed) == len(summary) else 0)
 
@@ -238,7 +241,7 @@ def main(argv=None):
     sub.add_parser("load-companies", help="load reference spreadsheets + watch list into Supabase").set_defaults(fn=cmd_load_companies)
 
     for name, sources, helptext in [
-        ("daily", ["iimjobs", "indeed", "naukri", "ats", "linkedin"], "the daily run (catches up from the last success; LinkedIn last, it is the slowest)"),
+        ("daily", ["iimjobs", "indeed", "naukri", "ats", "linkedin"], "the daily run (catches up from the last success; on GitHub each source is its own job)"),
         ("linkedin", ["linkedin"], "LinkedIn only (the Mac fallback)"),
         ("collect", ["linkedin", "indeed", "naukri", "iimjobs"], "custom run, e.g. a small test"),
     ]:
@@ -247,6 +250,7 @@ def main(argv=None):
         c.add_argument("--group", nargs="+", help="search group ids (default: all)")
         c.add_argument("--city", nargs="+", help="location names (default: all)")
         c.add_argument("--days", type=float, help="fixed window in days instead of catching up")
+        c.add_argument("--shard", help="K/N: this machine does every N-th search only (split runs)")
         c.set_defaults(fn=cmd_collect)
 
     b = sub.add_parser("backfill", help="one-time catch-up of the last N days (resumable)")

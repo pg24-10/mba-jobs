@@ -20,6 +20,7 @@ create table if not exists public.jobs (
   first_seen_at     timestamptz not null default now(),
   last_seen_at      timestamptz not null default now(),
   is_stale          boolean not null default false,
+  too_thin          boolean not null default false,  -- 004: post too short to tag or show
 
   experience_min    numeric,
   experience_max    numeric,
@@ -115,7 +116,7 @@ grant select (
 ) on public.jobs to anon;
 
 drop policy if exists "anyone can read jobs" on public.jobs;
-create policy "anyone can read jobs" on public.jobs for select to anon using (true);
+create policy "anyone can read jobs" on public.jobs for select to anon using (not too_thin);  -- 004
 
 -- ---------------------------------------------------------------- functions
 

@@ -118,9 +118,9 @@ def test_jobspy_retries_then_gives_up(monkeypatch):
         return [{"title": "PM"}], ["timed out"]
     monkeypatch.setattr(pipeline.jobspy_sources, "search", fake)
     groups = [{"id": "g", "query": "a OR b OR c OR d"}]
-    locs = [{"name": "Bangalore", "naukri": "Bangalore"}]
+    locs = [{"name": "Bangalore", "indeed": "Bangalore"}]
     with pytest.raises(RuntimeError):
-        pipeline.collect_jobspy(None, "naukri", groups, locs, pipeline.now(), log=lambda *a: None)
+        pipeline.collect_jobspy(None, "indeed", groups, locs, pipeline.now(), log=lambda *a: None)
     assert calls == ["a", "a", "b", "b", "c", "c", "d", "d"]   # gives up after 3 failing in a row
 
 
@@ -362,13 +362,13 @@ class _RunsDB(_KnownDB):
         return 0
 
 
-def test_next_linkedin_step_reads_the_last_stopped_run():
+def test_next_step_reads_the_last_stopped_run():
     from collector import pipeline
-    assert pipeline.next_linkedin_step(_RunsDB()) == 0
-    assert pipeline.next_linkedin_step(_RunsDB({"status": "success", "errors": None})) == 0
+    assert pipeline.next_step(_RunsDB(), "linkedin") == 0
+    assert pipeline.next_step(_RunsDB({"status": "success", "errors": None}), "linkedin") == 0
     stopped = {"status": "pending", "errors": "linkedin reached the time limit. Left for a later run "
                                               "(carry on from step 7)."}
-    assert pipeline.next_linkedin_step(_RunsDB(stopped)) == 6
+    assert pipeline.next_step(_RunsDB(stopped), "linkedin") == 6
 
 
 def test_daily_run_saves_linkedin_per_step_and_marks_time_up_as_pending(monkeypatch, tmp_path):
@@ -386,3 +386,38 @@ def test_daily_run_saves_linkedin_per_step_and_marks_time_up_as_pending(monkeypa
     assert db.updated[-1]["status"] == "pending"                         # window stays put
     assert "carry on from step 1" in db.updated[-1]["errors"]            # Mumbai is next
 
+
+
+def _jobspy_fake(monkeypatch, calls):
+    from collector import pipeline
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
+
+    def fake(source, term, location, hours):
+        calls.append((term, location))
+        return [{"title": f"{term} {location}"}], []
+    monkeypatch.setattr(pipeline.jobspy_sources, "search", fake)
+    return [{"id": "g", "query": "a OR b OR c"}], [{"name": "X", "indeed": "X"}, {"name": "Y", "indeed": "Y"}]
+
+
+def test_jobspy_saves_after_every_search_and_stops_at_the_time_limit(monkeypatch):
+    import pytest
+    from collector import pipeline
+    calls, saved = [], []
+    groups, locs = _jobspy_fake(monkeypatch, calls)
+    clock = iter([0, 0, 0, 10_000])                      # time runs out before the 4th search
+    monkeypatch.setattr(pipeline.time, "time", lambda: next(clock))
+    with pytest.raises(pipeline.TimeUp) as e:
+        pipeline.collect_jobspy(None, "indeed", groups, locs, pipeline.now(), log=lambda *a: None,
+                                flush=saved.append, deadline=1000)
+    assert len(saved) == 3 and e.value.next_step == 3
+
+
+def test_jobspy_carries_on_and_splits_across_machines(monkeypatch):
+    from collector import pipeline
+    calls = []
+    groups, locs = _jobspy_fake(monkeypatch, calls)
+    pipeline.collect_jobspy(None, "indeed", groups, locs, pipeline.now(), log=lambda *a: None, first_step=4)
+    assert calls[:2] == [("c", "X"), ("c", "Y")] and len(calls) == 6     # wraps round to the start
+    calls.clear()
+    pipeline.collect_jobspy(None, "indeed", groups, locs, pipeline.now(), log=lambda *a: None, shard=(2, 3))
+    assert calls == [("a", "Y"), ("c", "X")]                           # searches 2 and 5 of 6

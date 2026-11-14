@@ -1,0 +1,61 @@
+name: Parallel trial (Naukri + LinkedIn)
+
+# Trial decided by Pranav, 14 Nov 2026: does splitting one site's searches across
+# 5 GitHub machines at once get us blocked? Started by hand only.
+# Each machine does every 5th search, at the normal pace, and stops for good on
+# any block (no machine picks up another's searches). Stops after about 3 hours.
+# Runs are logged as "partial", so the daily catch-up window is not affected.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Window in days"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-collect            # never at the same time as the daily run
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: ${{ matrix.source }} ${{ matrix.shard }}/5
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [naukri, linkedin]
+        shard: [1, 2, 3, 4, 5]
+    timeout-minutes: 190
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      COLLECT_TIME_LIMIT_MINUTES: "180"   # the 3 h timer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - name: Collect
+        run: python -u -m collector.cli collect --sources ${{ matrix.source }} --shard ${{ matrix.shard }}/5 --days ${{ inputs.days }}
+      - name: Summary on the run page
+        if: always()
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY" || true
+          import json, pathlib
+          f = pathlib.Path("data/logs/runs.jsonl")
+          if not f.exists():
+              print("No run summary (the run stopped before the end).")
+          else:
+              run = json.loads(f.read_text().splitlines()[-1])
+              print("| Source | Status | Found | Kept | New | Note |\n|---|---|---|---|---|---|")
+              for name, s in run.items():
+                  if isinstance(s, dict):
+                      print(f"| {name} | {s['status']} | {s['found']} | {s['kept']} | {s['new']} | {s['error'] or ''} |")
+          EOF

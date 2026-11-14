@@ -140,7 +140,7 @@ def merge(rows):
 # ------------------------------------------------------------------ sources
 
 def collect_linkedin(db, groups, locations, since, log, details=True, flush=None,
-                     first_step=0, deadline=None):
+                     first_step=0, deadline=None, shard=None):
     """details=False (the backfill): save every job from its search card and queue the
     ones worth opening for Claude to sort (collector/triage.py) instead of opening them.
 
@@ -153,13 +153,13 @@ def collect_linkedin(db, groups, locations, since, log, details=True, flush=None
     li.deadline = deadline
     seconds = (now() - since).total_seconds()
     steps = [(g, loc) for g in groups for loc in locations]
-    first = first_step if 0 < first_step < len(steps) else 0
-    if first:
-        log(f"  linkedin: carrying on from step {first + 1} of {len(steps)} (the last run stopped there)")
+    order = steps_for(steps, first_step, shard)
+    if order and order[0] != (shard[0] - 1 if shard else 0):
+        log(f"  linkedin: carrying on from step {order[0] + 1} of {len(steps)} (the last run stopped there)")
     out = []
     emit = flush or out.extend
     seen = set()                                          # one job found in two steps: once
-    for idx in list(range(first, len(steps))) + list(range(first)):
+    for idx in order:
         g, loc = steps[idx]
         raws = []
         try:
@@ -242,35 +242,68 @@ def _linkedin_search(li, cards, query, place, city, seconds, extra):
     return n
 
 
-def collect_jobspy(db, source, groups, locations, since, log):
+def steps_for(steps, first_step=0, shard=None):
+    """The step numbers (0-based) to run, starting at `first_step` and wrapping round,
+    so a run that stopped part-way is picked up where it left off. shard=(k, n): only
+    every n-th step, starting with the k-th (k from 1), for runs split across machines."""
+    first = first_step if 0 < first_step < len(steps) else 0
+    order = list(range(first, len(steps))) + list(range(first))
+    return [i for i in order if not shard or i % shard[1] == shard[0] - 1]
+
+
+def collect_jobspy(db, source, groups, locations, since, log, flush=None, first_step=0,
+                   deadline=None, shard=None):
+    """One search (phrase in one city) at a time; each search's jobs go to `flush` as
+    soon as it is done, so the time limit or a block never loses finished work. On
+    Blocked / TimeUp, `e.next_step` is the search to start from next time."""
     hours = (now() - since).total_seconds() / 3600
     pace = config("settings")["jobspy"]
     delay = pace["delay_seconds"].get(source, 3)
-    raws, failing = [], 0
-    for g in groups:
-        for term in jobspy_sources.terms_for(source, g["query"]):
-            for loc in locations:
-                time.sleep(delay)
-                found, errors = jobspy_sources.search(source, term, loc[source], hours)
-                if source == "naukri" and jobspy_sources.captcha(errors):
-                    raise Blocked("Naukri asked for a captcha (406) on its search page")
-                if errors:
-                    log(f"  {source} {term} / {loc['name']}: {len(found)} with errors, "
-                        f"trying again in {pace['retry_wait_seconds']}s ({errors[-1][:80]})")
-                    time.sleep(pace["retry_wait_seconds"])
-                    again, errors = jobspy_sources.search(source, term, loc[source], hours)
-                    if len(again) >= len(found):
-                        found = again
-                failing = failing + 1 if errors else 0
-                for r in found:
-                    r["search_city"] = loc["name"]
-                raws += found
-                log(f"  {source} {term} / {loc['name']}: {len(found)}" + (" (incomplete)" if errors else ""))
-                if failing >= pace["give_up_after"]:
-                    raise RuntimeError(f"{source} kept failing ({failing} searches in a row): {errors[-1][:120]}")
-    if source == "naukri":
-        raws = naukri_details(db, raws, pace, log)
-    return raws
+    steps = [(term, loc) for g in groups for term in jobspy_sources.terms_for(source, g["query"])
+             for loc in locations]
+    order = steps_for(steps, first_step, shard)
+    if order and order[0] != (shard[0] - 1 if shard else 0):
+        log(f"  {source}: carrying on from search {order[0] + 1} of {len(steps)} (the last run stopped there)")
+    out, failing = [], 0
+    emit = flush or out.extend
+    for idx in order:
+        term, loc = steps[idx]
+        if deadline and time.time() + 60 >= deadline:
+            raise _stop(TimeUp, "time limit for this run reached", idx, out, source, len(steps), log)
+        time.sleep(delay)
+        found, errors = jobspy_sources.search(source, term, loc[source], hours)
+        if source == "naukri" and jobspy_sources.captcha(errors):
+            raise _stop(Blocked, "Naukri asked for a captcha (406) on its search page", idx, out, source,
+                             len(steps), log)
+        if errors:
+            log(f"  {source} {term} / {loc['name']}: {len(found)} with errors, "
+                f"trying again in {pace['retry_wait_seconds']}s ({errors[-1][:80]})")
+            time.sleep(pace["retry_wait_seconds"])
+            again, errors = jobspy_sources.search(source, term, loc[source], hours)
+            if len(again) >= len(found):
+                found = again
+        failing = failing + 1 if errors else 0
+        for r in found:
+            r["search_city"] = loc["name"]
+        log(f"  {source} {term} / {loc['name']}: {len(found)}" + (" (incomplete)" if errors else ""))
+        if source == "naukri":
+            try:
+                found = naukri_details(db, found, pace, log, deadline)
+            except Blocked as e:                       # keep this search's jobs, stop here
+                emit(e.partial)
+                e.partial, e.next_step = out, idx + 1
+                raise
+        emit(found)
+        if failing >= pace["give_up_after"]:
+            raise RuntimeError(f"{source} kept failing ({failing} searches in a row): {errors[-1][:120]}")
+    return out
+
+
+def _stop(cls, message, idx, out, source, total, log):
+    e = cls(message, partial=out)
+    e.next_step = idx
+    log(f"  {source}: stopped at search {idx + 1} of {total} ({message})")
+    return e
 
 
 class _NoIsb:
@@ -294,7 +327,7 @@ def not_worth_opening(db, raws):
     return skip
 
 
-def naukri_details(db, raws, pace, log):
+def naukri_details(db, raws, pace, log, deadline=None):
     """Naukri search rows already carry a description, often the whole text. Open
     the job page (one at a time) only for new jobs worth it whose search text is a
     short summary. Every job's key skills are added to its description for tagging."""
@@ -307,9 +340,12 @@ def naukri_details(db, raws, pace, log):
             and len((r.get("description") or "").split()) < short]
     skip = not_worth_opening(db, [by_id[i] for i in todo])
     todo = [i for i in todo if i not in skip]
-    log(f"  naukri: {len(by_id)} jobs, {len(todo)} new with only a short summary -> opening those")
+    if todo:
+        log(f"    naukri: {len(todo)} new with only a short summary -> opening those")
     pages = jobspy_sources.NaukriPages(pace.get("naukri_page_delay_seconds", 4))
     for n, i in enumerate(todo, 1):
+        if deadline and time.time() + 60 >= deadline:     # out of time: the rest keep their summary
+            break
         try:
             info = pages.details(i.split("nk-", 1)[-1])
         except Blocked as e:                                 # keep everything; the rest keep their summary
@@ -419,11 +455,13 @@ def learn_boards(db, raws, log, check_sites=True):
 # ------------------------------------------------------------------ run
 
 def run(db, sources, groups=None, locations=None, days=None, since=None, isb=None, log=print,
-        linkedin_details=True):
+        linkedin_details=True, shard=None):
     """Run the given sources and save the results. Returns a summary dict.
 
     The window is `since` if given, else the last `days`, else a catch-up from
-    each source's last success."""
+    each source's last success. shard=(k, n): this machine does every n-th search only
+    (a run split across machines); it is logged as "partial" so it never counts as the
+    whole window being done."""
     searches = config("searches")
     groups = groups or searches["groups"]
     locations = locations or searches["locations"]
@@ -462,26 +500,30 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
         try:
             catch_up = not since and not days
             start = since or (now() - timedelta(days=days) if days else window_start(db, source))
-            run_id = db.insert("runs", {"machine": machine(), "source": source,
+            run_id = db.insert("runs", {"machine": machine() + (f" {shard[0]}/{shard[1]}" if shard else ""),
+                                        "source": source,
                                         "window_start": start.isoformat(),
                                         "linkedin_route": "direct" if source == "linkedin" else None})["run_id"]
             log(f"{source}: since {start:%Y-%m-%d %H:%M} UTC")
             raws = []
             try:
+                stepwise = dict(flush=store, deadline=deadline(), shard=shard,
+                                first_step=next_step(db, source) if catch_up and not shard else 0)
                 if source == "linkedin":
                     raws = collect_linkedin(db, groups, locations, start, log, details=linkedin_details,
-                                            flush=store, deadline=deadline(),
-                                            first_step=next_linkedin_step(db) if catch_up else 0)
+                                            **stepwise)
+                elif source in ("indeed", "naukri"):
+                    raws = collect_jobspy(db, source, groups, locations, start, log, **stepwise)
                 else:
                     raws = collect(db, source, groups, locations, start, log, linkedin_details)
-                s["status"] = "success"
+                s["status"] = "partial" if shard else "success"
             except Blocked as e:                 # save what was finished; the rest waits
                 raws = e.partial
                 stop = getattr(e, "next_step", None)
                 why = "reached the time limit" if isinstance(e, TimeUp) else f"blocked: {e}"
                 s["status"], s["error"] = "pending", (
                     f"{source} {why}. Left for a later run"
-                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None and catch_up else "."))
+                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None and catch_up and not shard else "."))
                 log(f"  {s['error']} Saving the {len(raws)} jobs not saved yet.")
             store(raws)
             log(f"  {source}: {s['found']} found, {s['kept']} kept ({s['new']} new), dropped {s['dropped']}")
@@ -512,9 +554,11 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
 NEXT_STEP = "carry on from step"
 
 
-def next_linkedin_step(db):
-    """Where the last LinkedIn catch-up stopped (0-based), if it stopped part-way."""
-    rows = db.select("runs", {"select": "status,errors", "source": "eq.linkedin",
+def next_step(db, source):
+    """Where the last catch-up of this source stopped (0-based), if it stopped part-way.
+    Split-machine runs ("partial") are ignored."""
+    rows = db.select("runs", {"select": "status,errors", "source": f"eq.{source}",
+                              "status": "in.(success,pending)",
                               "finished_at": "not.is.null", "order": "finished_at.desc", "limit": "1"})
     if rows and rows[0]["status"] == "pending":
         m = re.search(NEXT_STEP + r" (\d+)", rows[0]["errors"] or "")

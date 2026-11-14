@@ -1,8 +1,11 @@
 name: Daily collect
 
 # Once a day at about 1 PM IST: collect new jobs from every source and save them
-# to Supabase. Each source catches up from its own last successful run, so a
-# missed day is picked up the next time. Can also be started by hand from the
+# to Supabase. Each source is its own job, all running side by side with up to 6 h
+# each. Jobs are saved after every search; a source that runs out of time stops
+# just before GitHub's 6 h cut-off and the next day carries on from the same search.
+# Each source catches up from its own last successful run, so a missed day is
+# picked up the next time. Can also be started by hand from the
 # Actions tab ("Run workflow").
 #
 # Nothing is committed back to the repo: job descriptions stay in Supabase only
@@ -27,14 +30,18 @@ concurrency:
 
 jobs:
   collect:
+    name: ${{ matrix.source }}
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    strategy:
+      fail-fast: false            # one site failing never stops the others
+      matrix:
+        source: [iimjobs, indeed, naukri, ats, linkedin]
+    timeout-minutes: 360          # GitHub's most for one job
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      # LinkedIn (run last) stops at 4.5 h and saves; the next day carries on from
-      # the same step and window. Keeps clear of the 5 h job timeout below.
-      COLLECT_TIME_LIMIT_MINUTES: "270"
+      # Stop 20 min before the 6 h cut-off, so the run can note where to carry on.
+      COLLECT_TIME_LIMIT_MINUTES: "340"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +52,7 @@ jobs:
       - name: Collect
         env:
           DAYS: ${{ inputs.days }}
-        run: python -u -m collector.cli daily ${DAYS:+--days "$DAYS"}
+        run: python -u -m collector.cli daily --sources ${{ matrix.source }} ${DAYS:+--days "$DAYS"}
       - name: Summary on the run page
         if: always()
         run: |

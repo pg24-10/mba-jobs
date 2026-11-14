@@ -30,7 +30,8 @@ OFF_LEVEL = {"entry", "director", "cxo"}      # too junior or beyond most MBA hi
 ASKS_MBA = {"required", "preferred"}
 LEVELS = ("required", "preferred", "not mentioned")
 COPY_WORDS = 8                                # this many words in a row from the post = copied
-TO_TAG = {"tagged_at": "is.null", "description_trimmed": "not.is.null"}
+THIN_WORDS = 60                               # fewer words of description than this: not tagged, not shown
+TO_TAG = {"tagged_at": "is.null", "description_trimmed": "not.is.null", "too_thin": "is.false"}
 
 
 def fit_score(tag, tags=None):
@@ -62,21 +63,40 @@ def _failed():
     return {int(k): v for k, v in json.loads(FAILED.read_text()).items()} if FAILED.exists() else {}
 
 
-def export(db, limit=50, path=BATCH):
+def thin(description):
+    """True when a post says too little to tag well or to be worth showing."""
+    return len((description or "").split()) < THIN_WORDS
+
+
+def mark_thin(db, ids):
+    """Flag these jobs too_thin: never tagged, never shown on the site."""
+    for i in range(0, len(ids), 200):
+        db._send("PATCH", f"{db.base}/jobs", params={"id": f"in.({','.join(map(str, ids[i:i + 200]))})"},
+                 data=json.dumps({"too_thin": True}), timeout=60)
+
+
+def export(db, limit=50, path=BATCH, log=print):
+    """Write the next `limit` jobs to tag. Jobs whose description is too short are
+    flagged too_thin on the way and left out."""
     skip = [i for i, n in _failed().items() if n >= GIVE_UP]
-    params = {**TO_TAG, "order": "past_isb_recruiter.desc,posted_at.desc.nullslast"}
+    params = {**TO_TAG, "order": "past_isb_recruiter.desc,posted_at.desc.nullslast",
+              "select": "id,title,company,location_city,description_trimmed"}
     if skip:
         params["id"] = f"not.in.({','.join(map(str, skip))})"
-    rows = []
+    rows, flagged = [], 0
     while len(rows) < limit:                      # the database hands out at most 1,000 rows a time
-        start = len(rows)
-        page = db._send("GET", f"{db.base}/jobs", timeout=60,
-                        params={**params,
-                                "select": "id,title,company,location_city,description_trimmed"},
-                        headers={"Range": f"{start}-{min(limit, start + 1000) - 1}"})
-        rows += page
-        if not page or len(rows) % 1000:
+        want = min(1000, limit - len(rows))
+        page = db._send("GET", f"{db.base}/jobs", timeout=60, params=params,
+                        headers={"Range": f"{len(rows)}-{len(rows) + want - 1}"})
+        bad = [r["id"] for r in page if thin(r["description_trimmed"])]
+        if bad:                                   # flagged rows drop out, so the next page starts at len(rows)
+            mark_thin(db, bad)
+            flagged += len(bad)
+        rows += [r for r in page if not thin(r["description_trimmed"])]
+        if len(page) < want:
             break
+    if flagged:
+        log(f"left out {flagged} jobs with under {THIN_WORDS} words of description (flagged too_thin)")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([{"id": r["id"], "title": r["title"], "company": r["company"],
                                  "city": r["location_city"], "description": r["description_trimmed"]}

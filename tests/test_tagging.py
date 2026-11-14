@@ -105,3 +105,30 @@ def test_parts_export_and_import(tmp_path, monkeypatch):
     saved, problems, left = tagging.import_parts(db)
     assert (saved, problems, left) == (2, [], 1)
     assert not (tmp_path / "part1.json").exists() and (tmp_path / "part2.json").exists()
+
+
+class PagingDB:
+    """Hands out untagged jobs like Supabase: flagged ones drop out of later pages."""
+    base = "x"
+
+    def __init__(self, jobs):
+        self.jobs, self.flagged = jobs, set()
+
+    def _send(self, method, url, params=None, headers=None, data=None, timeout=None):
+        if method == "PATCH":
+            self.flagged |= {int(i) for i in params["id"][4:-1].split(",")}
+            return None
+        start, end = map(int, headers["Range"].split("-"))
+        left = [j for j in self.jobs if j["id"] not in self.flagged]
+        return left[start:end + 1]
+
+
+def test_export_leaves_out_and_flags_thin_posts(tmp_path, monkeypatch):
+    monkeypatch.setattr(tagging, "FAILED", tmp_path / "failed.json")
+    long, short = " ".join(["word"] * 80), "Hiring a manager. Apply now."
+    jobs = [{"id": i, "title": "PM", "company": "X", "location_city": "Pune",
+             "description_trimmed": short if i % 2 else long} for i in range(1, 9)]
+    db = PagingDB(jobs)
+    assert tagging.export(db, 3, tmp_path / "b.json", log=lambda m: None) == 3
+    assert [j["id"] for j in json.loads((tmp_path / "b.json").read_text())] == [2, 4, 6]
+    assert db.flagged == {1, 3, 5}

@@ -23,7 +23,7 @@ Written: 3 Nov 2026
 
 | Area | Decision |
 |---|---|
-| Daily collection | GitHub Actions, once a day at about 1:00 PM IST |
+| Daily collection | GitHub Actions, once a day at about 1:00 PM IST. One job per source, side by side, up to 6 h each (changed 14 Nov 2026, Pranav). Saves after every search; a source that runs out of time carries on from the same search the next day. |
 | LinkedIn route | Layer 1: direct from GitHub Actions. Layer 2: Pranav's Mac, via a background checker that runs LinkedIn when it is marked "pending". No Tailscale, no Apify, no paid proxies. |
 | Backfill | One-time, last 30 days, run on Pranav's Mac. Naukri left out (changed 5 Nov 2026, Pranav): its search kept blocking us, so Naukri comes in through the daily runs only. |
 | Database | Supabase (free tier) |
@@ -139,6 +139,7 @@ If a source does not support OR, split that group into single phrases automatica
 - Time filter: past 24 hours for daily runs (`f_TPR=r86400`), past 30 days for the backfill (`f_TPR=r2592000`), or the catch-up window (see pipeline).
 - Known limits: about 10 results per request (verify the `start` step), about 1,000 results per search. The guest search ignores experience-level, workplace and job-type filters, so do that filtering ourselves.
 - Pace: 2 to 3 seconds between requests, with random jitter. Never faster than 1.5 seconds. On a 429 or 999, back off (double the wait), and after repeated blocks stop LinkedIn for this run and mark it "pending".
+- **Parallel-machine trial (decided 14 Nov 2026, Pranav):** one hand-started test of LinkedIn and Naukri each split across 5 GitHub machines (every 5th search each, normal pace, 3 h, `.github/workflows/parallel-trial.yml`), to see whether it gets blocked. Each machine stops for good on a block. Daily runs stay one machine per site unless Pranav decides otherwise after the trial.
 - Fetch the detail page only for jobs that pass the exclude filter.
 - Use JobSpy's LinkedIn code as a reference for parsing if helpful (speedyapply/JobSpy, MIT).
 
@@ -218,12 +219,13 @@ If a source does not support OR, split that group into single phrases automatica
 
 ## Tagging with Claude
 
-- Define a subagent in `.claude/agents/job-tagger.md` with `model: haiku`. It takes a batch of 50 jobs and returns JSON tags for each (fields listed under the `jobs` table), including the own-words breakdown: duties, looking_for and key_skills. The breakdown must be rewritten in plain words, never copied sentences from the post.
-- The main session reads inbox files and hands them to the tagger **one batch at a time, sequentially, never in parallel**. Parallel subagent dispatch has caused hangs in Pranav's other routines.
+- Define a subagent in `.claude/agents/job-tagger.md` with `model: haiku`. It takes a part of 100 jobs and returns JSON tags for each (fields listed under the `jobs` table), including the own-words breakdown: duties, looking_for and key_skills. The breakdown must be rewritten in plain words, never copied sentences from the post.
+- **Standard setup (decided 14 Nov 2026):** `tag-export --parts 20 --limit 100` writes 20 parts of 100 jobs; 20 Haiku helpers tag them in parallel (never more than 20 at once); then `tag-import --parts` saves them. No accuracy or spot checks after a round: they cost usage. (Replaces the earlier rule of one batch at a time; parallel runs worked fine here.)
 - Send only the requirements part of each description (trimmed), not the whole text.
 - Resumable: a job tagged once is never re-tagged. If a usage limit stops the run, the next run continues.
 - **Accuracy check first:** tag the same 50 jobs with Haiku and with Sonnet and show Pranav a comparison per field. If agreement is about 90% or more, use Haiku for everything. If not, use Sonnet for background_wanted and fit_score only.
-- **Backfill tagging:** one session, batches of 50, sequential.
+- **Backfill tagging:** rounds of 20 parts × 100, as above.
+- **Thin posts (decided 14 Nov 2026):** a job with under 60 words of description is not tagged and not shown. `tag-export` flags it `too_thin` and leaves it out; the website never reads flagged jobs (`supabase/004_too_thin.sql`). Nothing is deleted.
 - **Daily tagging:** write `ops/tagging-task-prompt.md` for a Claude scheduled task that runs at 2:30 PM and 10:00 PM IST. It clones the repo, tags new inbox files, writes `data/tags/*.json`, commits and pushes. Help Pranav create the scheduled task.
 - `load-tags.yml` GitHub Action: on push to `data/tags/`, load the tags into Supabase, then delete description_trimmed for those jobs.
 
