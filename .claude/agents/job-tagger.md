@@ -14,9 +14,12 @@ You are given two paths: a batch file (JSON list of jobs) and an output file.
    seniority from years, industry examples, when a company is an agency,
    when a role is hands-on).
 2. Read the batch file. Each job has `id`, `title`, `company`, `city`, and
-   `description` (the requirements part of the post, trimmed).
+   `description` (the requirements part of the post, trimmed). Some jobs also have
+   `already_known`: fields the code has already decided for that job.
 3. Write the output file: a JSON list with one object per job, in the same order,
-   with exactly these keys:
+   with these keys (leave out any key that is in the job's `already_known`; the
+   code fills it). Do not write `masters_mentioned`, `experience_min` or
+   `experience_max`: the code reads those from the post itself.
 
    - `id`: copied from the job
    - `function`: one id from tags.yaml `function`
@@ -25,13 +28,11 @@ You are given two paths: a batch file (JSON list of jobs) and an output file.
    - `mba_requirement`: `required`, `preferred` or `not mentioned`. "required" only when
      an MBA / PGDM is the one degree asked for; when it is one option among others
      (CA / MBA / master's) or "a plus", use "preferred" (see tags.yaml).
-   - `masters_mentioned`: true if the post mentions any master's degree
    - `industry`: one id from `industry` (the employer's industry)
    - `industry_experience_required`: `required`, `preferred` or `not mentioned`
    - `company_type`: one id from `company_type`
    - `startup_stage`: one id from `startup_stage` when company_type is `startup`
      and you have a reasonable idea, else null
-   - `experience_min`, `experience_max`: years as numbers if the post states them, else null
    - `hands_on`: true or false, following the `hands_on` note in tags.yaml
      (do not give a fit score; the code works it out)
    - `summary`: one line, at most 20 words, what the job is
