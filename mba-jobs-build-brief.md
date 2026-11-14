@@ -255,7 +255,7 @@ If a source does not support OR, split that group into single phrases automatica
 - **Personal features:** save (bookmark), hide, mark applied, "new since your last visit". Signed out: kept in the browser (localStorage, with try/catch). Signed in: kept in a `user_jobs` table (user_id, job_id, saved / applied / hidden, time) that each user can only read and change for themselves (row-level security `auth.uid() = user_id`); browser marks are copied up on first sign-in.
 - **Sign-in:** a small "Sign in" button (Google, or email link). Account menu with "Delete my account". A short plain privacy note.
 - **Shareable searches:** the current filters and sort live in the page address, so copying the link opens the same results.
-- "Show all" toggle that includes low fit scores. Stale jobs hidden by default.
+- **Default view shows fit score 3 and above (decided 14 Nov 2026, Pranav).** Fit 1–2 jobs (about 40% of tagged jobs: mostly hands-on tech and SAP roles) stay in the database and appear only with the "Show all" toggle. Untagged jobs are not shown by default either. Stale jobs hidden by default.
 - A small "Last updated: <time>" line from the latest successful run.
 - Must work well on a phone. Fast first load. Read-only Supabase key only.
 - Plain, simple wording in the UI.

@@ -38,6 +38,57 @@ exclude_title:
   - site reliability
   - firmware
   - embedded
+  # added 14 Nov 2026 from the first 6,928 tagged jobs: each of these titles
+  # scored fit 1-2 at least 90% of the time and almost never 4-5.
+  # Not "engineer" on its own: a campus role reads "Senior Data Scientist /
+  # Senior Data Engineer", so data engineer, sales / solutions engineer and
+  # BI engineer stay too. Engineering manager is never matched.
+  - senior engineer
+  - sr engineer
+  - sr. engineer
+  - lead engineer
+  - principal engineer
+  - staff engineer
+  - ai engineer
+  - ml engineer
+  - ai/ml engineer
+  - design engineer
+  - development engineer
+  - platform engineer
+  - application engineer
+  - support engineer
+  - systems engineer
+  - system engineer
+  - quality engineer
+  - automation engineer
+  - integration engineer
+  - security engineer
+  - cloud engineer
+  - devsecops engineer
+  - deployed engineer
+  - project engineer
+  - site engineer
+  - planning engineer
+  - operations engineer
+  - service engineer
+  - services engineer
+  - assurance engineer
+  - verification engineer
+  - civil engineer
+  - electrical engineer
+  - mechanical engineer
+  - mep engineer
+  - technical lead
+  - administrator
+  - verification
+  - workday
+  - salesforce
+  - guidewire
+  - sap fico
+  - sap sd
+  - sap mm
+  - sap ewm
+  - sap btp
   # frontline and support roles
   - telecaller
   - tele caller
