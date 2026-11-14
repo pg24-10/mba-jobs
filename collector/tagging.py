@@ -161,6 +161,23 @@ _MBA = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bpost[- ]?graduat|busine
                   r"\bmaster'?s?\b[^.\n]{0,40}\b(?:business|management)\b", re.I)
 
 
+_MBA_STRICT = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bmms\b|business school|b-school", re.I)
+_MUST = re.compile(r"mandatory|must|required|essential|compulsory|only", re.I)
+_SOFT = re.compile(r"prefer|plus|advantage|desirable|added|not mandatory|nice to have|or equivalent|good to have", re.I)
+
+
+def mba_from_post(text):
+    """The code's own read of mba_requirement, used when Claude leaves it out.
+    (Required and preferred both add 1 to fit, so the main thing is spotting the mention.)"""
+    text = text or ""
+    found = [text[max(0, m.start() - 60):m.end() + 60] for m in _MBA_STRICT.finditer(text)]
+    if not found:
+        return "not mentioned"
+    if any(_MUST.search(w) and not _SOFT.search(w) for w in found):
+        return "required"
+    return "preferred"
+
+
 def read_years(text):
     """(min, max) years of experience stated in the post, or (None, None).
     Several figures: the largest minimum (the post's overall ask)."""
@@ -387,6 +404,8 @@ def _years(v):
 def check(tag, job, tags):
     """The row to save for one tag, or the reason it can't be saved."""
     tag = {**tag, **(job.get("already_known") or {})}  # what the code decided wins
+    if tag.get("mba_requirement") is None:                  # left out by mistake: the code reads it
+        tag["mba_requirement"] = mba_from_post(job.get("description"))
     for field in ("function", "seniority", "industry", "company_type"):
         if tag.get(field) not in tags[field]:
             return f"{field} {tag.get(field)!r} is not in tags.yaml"

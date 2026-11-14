@@ -252,3 +252,12 @@ def test_fix_company_sets_listed_values_and_keeps_agency_industry():
     assert tagging.fix_company(row, "Randstad", facts) == {"company_type": "agency", "startup_stage": None}
     assert row["industry"] == "bfsi"
     assert tagging.fix_company({"industry": "x"}, "Unknown Co", facts) == {}
+
+
+def test_code_reads_mba_when_claude_leaves_it_out():
+    assert tagging.mba_from_post("Requirements: MBA in HR (Mandatory).") == "required"
+    assert tagging.mba_from_post("B.Com or equivalent; M.Com / MBA is a plus.") == "preferred"
+    assert tagging.mba_from_post("Graduate or postgraduate from any university.") == "not mentioned"
+    tag = {k: v for k, v in GOOD.items() if k != "mba_requirement"}
+    row = check(tag, {**JOB, "description": POST + " MBA preferred."}, config("tags"))
+    assert row["mba_requirement"] == "preferred"

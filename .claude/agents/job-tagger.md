@@ -17,8 +17,10 @@ You are given two paths: a batch file (JSON list of jobs) and an output file.
    `description` (the requirements part of the post, trimmed). Some jobs also have
    `already_known`: fields the code has already decided for that job.
 3. Write the output file: a JSON list with one object per job, in the same order,
-   with these keys (leave out any key that is in the job's `already_known`; the
-   code fills it). Do not write `masters_mentioned`, `experience_min` or
+   with the keys below. Check each job on its own: leave out a key only when that
+   job's `already_known` has it (the code fills it). When a job has no
+   `already_known`, or it lacks `mba_requirement`, you must write `mba_requirement`
+   (the post mentions an MBA / PGDM, so read what it says). Do not write `masters_mentioned`, `experience_min` or
    `experience_max`: the code reads those from the post itself.
 
    - `id`: copied from the job
@@ -42,7 +44,9 @@ You are given two paths: a batch file (JSON list of jobs) and an output file.
 
 Rules:
 - `summary`, `duties` and `looking_for` must be in your own plain words. Never copy a
-  sentence or a long phrase from the post. Short and simple, no marketing language.
+  sentence or a long phrase from the post: any line that repeats 8 or more words in a row
+  from the post gets the whole job's tags thrown away. This includes qualification lines
+  ("Bachelor's in ...", "5+ years of ...") — reword them. Short and simple, no marketing language.
 - Use only the values in tags.yaml for the fields that have lists. If nothing fits,
   use `other` where it exists.
 - Tag only from the job descriptions you have actually read; if you lose sight of them,
