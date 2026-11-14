@@ -211,9 +211,60 @@ def check(tag, job, tags):
     return row
 
 
+def _key(name):
+    """Company name for matching: case, punctuation and spacing ignored."""
+    return " ".join(re.findall(r"[a-z0-9]+", (name or "").lower().replace("&", " and ")))
+
+
+def company_facts():
+    """{matching key: (industry or None, company_type)} from config/company_facts.yaml."""
+    return {_key(name): tuple(v) for name, v in (config("company_facts") or {}).items()}
+
+
+def fix_company(row, company, facts):
+    """Put the listed industry / company type on a tag row. Returns the fields changed."""
+    known = facts.get(_key(company))
+    if not known:
+        return {}
+    industry, ctype = known
+    want = {"company_type": ctype}
+    if industry:
+        want["industry"] = industry
+    if ctype != "startup":
+        want["startup_stage"] = None
+    changed = {k: v for k, v in want.items() if row.get(k) != v}
+    row.update(changed)
+    return changed
+
+
+def apply_companies(db, log=print):
+    """Bring jobs already tagged in line with the company list. Returns jobs changed."""
+    facts, rows = company_facts(), []
+    while True:
+        page = db._send("GET", f"{db.base}/jobs", timeout=60,
+                        params={"tagged_at": "not.is.null", "order": "id",
+                                "select": "id,company,industry,company_type,startup_stage"},
+                        headers={"Range": f"{len(rows)}-{len(rows) + 999}"})
+        rows += page
+        if len(page) < 1000:
+            break
+    groups = {}
+    for r in rows:
+        changed = fix_company(dict(r), r["company"], facts)
+        if changed:
+            groups.setdefault(json.dumps(changed, sort_keys=True), []).append(r["id"])
+    for values, ids in groups.items():
+        for i in range(0, len(ids), 200):
+            db._send("PATCH", f"{db.base}/jobs", params={"id": f"in.({','.join(map(str, ids[i:i + 200]))})"},
+                     data=values, timeout=60)
+    n = sum(len(ids) for ids in groups.values())
+    log(f"checked {len(rows)} tagged jobs against {len(facts)} listed companies; corrected {n}")
+    return n
+
+
 def import_tags(db, path=TAGGED, batch=BATCH, log=print):
     """Save every good tag, delete those jobs' descriptions. Returns (saved, problems)."""
-    tags = config("tags")
+    tags, facts = config("tags"), company_facts()
     jobs = {j["id"]: j for j in json.loads(batch.read_text())}
     have = {r["id"]: r for r in db.select("jobs", {"id": f"in.({','.join(map(str, jobs))})",
                                                     "select": "id,experience_min,experience_max"})} if jobs else {}
@@ -229,6 +280,7 @@ def import_tags(db, path=TAGGED, batch=BATCH, log=print):
             problems.append(f"{job['id']} {job['title'][:40]}: {row}")
             failed[job["id"]] = failed.get(job["id"], 0) + 1
             continue
+        fix_company(row, job.get("company"), facts)
         db.update("jobs", {"id": job["id"]}, {**row, "tagged_at": now, "tag_model": MODEL,
                                               "description_trimmed": None})
         saved += 1

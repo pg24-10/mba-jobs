@@ -12,6 +12,10 @@
 #   Business analyst on software projects -> technology.
 #   Consultants who implement or configure one software product for clients (SAP FICO, SAP GRC,
 #   Oracle, Salesforce, ServiceNow, Workday) -> technology, whatever module it is, and hands_on true.
+#   Fit-out, construction, interiors and site project work (cost estimates, site visits, progress
+#   checks) -> program_management, even at a property consultancy; not consulting.
+#   Industry and company type for well-known employers are fixed by code from
+#   config/company_facts.yaml, so a wrong guess there is corrected on import.
 function:
   strategy: Strategy
   consulting: Consulting

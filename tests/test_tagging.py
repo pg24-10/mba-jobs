@@ -132,3 +132,21 @@ def test_export_leaves_out_and_flags_thin_posts(tmp_path, monkeypatch):
     assert tagging.export(db, 3, tmp_path / "b.json", log=lambda m: None) == 3
     assert [j["id"] for j in json.loads((tmp_path / "b.json").read_text())] == [2, 4, 6]
     assert db.flagged == {1, 3, 5}
+
+
+def test_company_list_uses_only_known_values():
+    tags = config("tags")
+    for name, (industry, ctype) in config("company_facts").items():
+        assert industry is None or industry in tags["industry"], name
+        assert ctype in tags["company_type"], name
+
+
+def test_fix_company_sets_listed_values_and_keeps_agency_industry():
+    facts = {tagging._key("Cushman & Wakefield"): ("real_estate", "mnc"),
+             tagging._key("Randstad"): (None, "agency")}
+    row = {"industry": "consulting", "company_type": "mnc", "startup_stage": None}
+    assert tagging.fix_company(row, "CUSHMAN and Wakefield", facts) == {"industry": "real_estate"}
+    row = {"industry": "bfsi", "company_type": "startup", "startup_stage": "early"}
+    assert tagging.fix_company(row, "Randstad", facts) == {"company_type": "agency", "startup_stage": None}
+    assert row["industry"] == "bfsi"
+    assert tagging.fix_company({"industry": "x"}, "Unknown Co", facts) == {}

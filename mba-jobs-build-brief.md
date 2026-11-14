@@ -226,6 +226,7 @@ If a source does not support OR, split that group into single phrases automatica
 - **Accuracy check first:** tag the same 50 jobs with Haiku and with Sonnet and show Pranav a comparison per field. If agreement is about 90% or more, use Haiku for everything. If not, use Sonnet for background_wanted and fit_score only.
 - **Backfill tagging:** rounds of 20 parts × 100, as above.
 - **Thin posts (decided 14 Nov 2026):** a job with under 60 words of description is not tagged and not shown. `tag-export` flags it `too_thin` and leaves it out; the website never reads flagged jobs (`supabase/004_too_thin.sql`). Nothing is deleted.
+- **Company list (decided 14 Nov 2026):** industry and company type come from `config/company_facts.yaml` for every listed employer (applied on `tag-import`; `tag-companies` re-applies it to jobs already tagged). Recruitment agencies and conglomerates keep the tagger's industry per job. Add new employers to the list as they show up.
 - **Daily tagging:** write `ops/tagging-task-prompt.md` for a Claude scheduled task that runs at 2:30 PM and 10:00 PM IST. It clones the repo, tags new inbox files, writes `data/tags/*.json`, commits and pushes. Help Pranav create the scheduled task.
 - `load-tags.yml` GitHub Action: on push to `data/tags/`, load the tags into Supabase, then delete description_trimmed for those jobs.
 

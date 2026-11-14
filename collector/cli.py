@@ -216,6 +216,12 @@ def cmd_tag_import(args):
         print("  not saved:", p)
 
 
+def cmd_tag_companies(args):
+    from . import tagging
+    from .db import DB
+    tagging.apply_companies(DB())
+
+
 def cmd_fill_details(args):
     from . import triage
     from .db import DB
@@ -283,6 +289,8 @@ def main(argv=None):
                          "those jobs' descriptions")
     ti2.add_argument("--parts", action="store_true", help="import every partK-tagged.json instead")
     ti2.set_defaults(fn=cmd_tag_import)
+    sub.add_parser("tag-companies", help="give tagged jobs the industry and company type in "
+                   "config/company_facts.yaml").set_defaults(fn=cmd_tag_companies)
     fd = sub.add_parser("fill-details", help="open the LinkedIn jobs Claude chose and add their details")
     fd.add_argument("--limit", type=int)
     fd.add_argument("--until-done", action="store_true",
