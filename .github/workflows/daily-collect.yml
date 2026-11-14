@@ -2,10 +2,11 @@ name: Daily collect
 
 # Once a day at about 1 PM IST: collect new jobs from every source and save them
 # to Supabase. Each source is its own job, all running side by side with up to 6 h
-# each. Jobs are saved after every search; a source that runs out of time stops
+# each: one machine each for iimjobs, Indeed, Naukri and the careers pages, and
+# LinkedIn split across 10 machines (machine K does every 10th search, starting at K). Jobs are saved after every search; a source that runs out of time stops
 # just before GitHub's 6 h cut-off and the next day carries on from the same search.
-# Each source catches up from its own last successful run, so a missed day is
-# picked up the next time. Can also be started by hand from the
+# Each source (and each LinkedIn machine) catches up from its own last finished
+# run, so a missed day is picked up the next time. Can also be started by hand from the
 # Actions tab ("Run workflow").
 #
 # Nothing is committed back to the repo: job descriptions stay in Supabase only
@@ -30,12 +31,26 @@ concurrency:
 
 jobs:
   collect:
-    name: ${{ matrix.source }}
+    name: ${{ matrix.source }}${{ matrix.shard && format(' {0}/10', matrix.shard) || '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false            # one site failing never stops the others
       matrix:
-        source: [iimjobs, indeed, naukri, ats, linkedin]
+        include:
+          - source: iimjobs
+          - source: indeed
+          - source: naukri
+          - source: ats
+          - { source: linkedin, shard: 1 }
+          - { source: linkedin, shard: 2 }
+          - { source: linkedin, shard: 3 }
+          - { source: linkedin, shard: 4 }
+          - { source: linkedin, shard: 5 }
+          - { source: linkedin, shard: 6 }
+          - { source: linkedin, shard: 7 }
+          - { source: linkedin, shard: 8 }
+          - { source: linkedin, shard: 9 }
+          - { source: linkedin, shard: 10 }
     timeout-minutes: 360          # GitHub's most for one job
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -52,7 +67,10 @@ jobs:
       - name: Collect
         env:
           DAYS: ${{ inputs.days }}
-        run: python -u -m collector.cli daily --sources ${{ matrix.source }} ${DAYS:+--days "$DAYS"}
+          SHARD: ${{ matrix.shard }}
+        run: >-
+          python -u -m collector.cli daily --sources ${{ matrix.source }}
+          ${SHARD:+--shard "$SHARD/10"} ${DAYS:+--days "$DAYS"}
       - name: Summary on the run page
         if: always()
         run: |

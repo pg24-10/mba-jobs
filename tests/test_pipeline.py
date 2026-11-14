@@ -421,3 +421,27 @@ def test_jobspy_carries_on_and_splits_across_machines(monkeypatch):
     calls.clear()
     pipeline.collect_jobspy(None, "indeed", groups, locs, pipeline.now(), log=lambda *a: None, shard=(2, 3))
     assert calls == [("a", "Y"), ("c", "X")]                           # searches 2 and 5 of 6
+
+
+class _ParamsDB:
+    def __init__(self, rows):
+        self.rows, self.params = rows, None
+
+    def select(self, table, params):
+        self.params = params
+        return self.rows
+
+
+def test_split_machines_catch_up_from_their_own_last_run():
+    from collector import pipeline
+    db = _ParamsDB([{"status": "pending", "errors": "linkedin reached the time limit. Left for a later run "
+                                                     "(carry on from step 23)."}])
+    assert pipeline.next_step(db, "linkedin", (3, 10)) == 22
+    assert db.params["machine"] == "like.* 3/10" and db.params["status"] == "in.(partial,pending)"
+    pipeline.next_step(db, "linkedin")
+    assert db.params["machine"] == "not.like.*/*"                       # whole runs ignore split ones
+    db = _ParamsDB([])
+    pipeline.window_start(db, "linkedin", shard=(3, 10))
+    assert "machine.like.* 3/10" in db.params["or"] and "status" not in db.params
+    pipeline.window_start(db, "linkedin")
+    assert db.params["status"] == "eq.success"

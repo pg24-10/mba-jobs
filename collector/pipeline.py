@@ -28,10 +28,21 @@ def now():
 
 # ------------------------------------------------------------------ windows
 
-def window_start(db, source, default_days=1):
-    """Catch up from the last successful run of this source (any machine)."""
-    rows = db.select("runs", {"select": "finished_at", "source": f"eq.{source}",
-                              "status": "eq.success", "order": "finished_at.desc", "limit": "1"})
+def _shard_machine(shard):
+    """Run-log filter for one split machine, e.g. "github 3/10" -> like.* 3/10."""
+    return f"like.* {shard[0]}/{shard[1]}"
+
+
+def window_start(db, source, default_days=1, shard=None):
+    """Catch up from the last successful run of this source (any machine). A split
+    machine (shard K/N) also counts its own last finished run ("partial"), so each of
+    the N machines catches up on its own searches."""
+    params = {"select": "finished_at", "source": f"eq.{source}", "status": "eq.success",
+              "order": "finished_at.desc", "limit": "1"}
+    if shard:
+        del params["status"]
+        params["or"] = f"(status.eq.success,and(status.eq.partial,machine.{_shard_machine(shard)}))"
+    rows = db.select("runs", params)
     oldest = now() - timedelta(days=config("settings")["max_window_days"])
     if not rows or not rows[0]["finished_at"]:
         return max(oldest, now() - timedelta(days=default_days))
@@ -461,7 +472,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
     The window is `since` if given, else the last `days`, else a catch-up from
     each source's last success. shard=(k, n): this machine does every n-th search only
     (a run split across machines); it is logged as "partial" so it never counts as the
-    whole window being done."""
+    whole window being done, and on a catch-up it carries on from its own last run."""
     searches = config("searches")
     groups = groups or searches["groups"]
     locations = locations or searches["locations"]
@@ -499,7 +510,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
 
         try:
             catch_up = not since and not days
-            start = since or (now() - timedelta(days=days) if days else window_start(db, source))
+            start = since or (now() - timedelta(days=days) if days else window_start(db, source, shard=shard))
             run_id = db.insert("runs", {"machine": machine() + (f" {shard[0]}/{shard[1]}" if shard else ""),
                                         "source": source,
                                         "window_start": start.isoformat(),
@@ -508,7 +519,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
             raws = []
             try:
                 stepwise = dict(flush=store, deadline=deadline(), shard=shard,
-                                first_step=next_step(db, source) if catch_up and not shard else 0)
+                                first_step=next_step(db, source, shard) if catch_up else 0)
                 if source == "linkedin":
                     raws = collect_linkedin(db, groups, locations, start, log, details=linkedin_details,
                                             **stepwise)
@@ -523,7 +534,7 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
                 why = "reached the time limit" if isinstance(e, TimeUp) else f"blocked: {e}"
                 s["status"], s["error"] = "pending", (
                     f"{source} {why}. Left for a later run"
-                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None and catch_up and not shard else "."))
+                    + (f" ({NEXT_STEP} {stop + 1})." if stop is not None and catch_up else "."))
                 log(f"  {s['error']} Saving the {len(raws)} jobs not saved yet.")
             store(raws)
             log(f"  {source}: {s['found']} found, {s['kept']} kept ({s['new']} new), dropped {s['dropped']}")
@@ -554,12 +565,16 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
 NEXT_STEP = "carry on from step"
 
 
-def next_step(db, source):
+def next_step(db, source, shard=None):
     """Where the last catch-up of this source stopped (0-based), if it stopped part-way.
-    Split-machine runs ("partial") are ignored."""
-    rows = db.select("runs", {"select": "status,errors", "source": f"eq.{source}",
-                              "status": "in.(success,pending)",
-                              "finished_at": "not.is.null", "order": "finished_at.desc", "limit": "1"})
+    shard=(k, n): where this split machine's own last run stopped; whole runs ignore
+    split-machine runs."""
+    params = {"select": "status,errors", "source": f"eq.{source}", "status": "in.(success,pending)",
+              "finished_at": "not.is.null", "order": "finished_at.desc", "limit": "1",
+              "machine": "not.like.*/*"}
+    if shard:
+        params.update(status="in.(partial,pending)", machine=_shard_machine(shard))
+    rows = db.select("runs", params)
     if rows and rows[0]["status"] == "pending":
         m = re.search(NEXT_STEP + r" (\d+)", rows[0]["errors"] or "")
         if m:
