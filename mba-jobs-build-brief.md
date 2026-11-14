@@ -45,13 +45,13 @@ GitHub Actions, ~1 PM IST  <---->  Pranav's Mac (LinkedIn fallback + one-time ba
   collect, filter, dedupe
         |                                   ^
         v                                   |
-Supabase database  <---- tags loaded ----  Claude tagging (2:30 PM, 10 PM IST)
-        |                                   reads data/inbox, writes data/tags via the repo
+Supabase database  <---- tags saved -----  Claude tagging on Pranav's Mac
+        |                                   (tag-export / tag-import read and write Supabase directly)
         v
 Vercel website (mba-jobs) ---> students
 ```
 
-Why the repo is the handoff point for tagging: Claude's cloud scheduled tasks can reach GitHub but not job sites or Supabase. So the collector writes untagged jobs to `data/inbox/`, the tagging task writes results to `data/tags/`, and a GitHub Action loads the tags into Supabase.
+Tagging runs on Pranav's Mac (changed 14 Nov 2026): `tag-export` reads untagged jobs from Supabase and `tag-import` saves the tags straight back. The repo is not a handoff point, so there is no `data/tags/` and no `load-tags.yml`.
 
 ## Reference files (in `reference/`)
 
@@ -83,13 +83,12 @@ mba-jobs/
     settings.yaml       e.g. show_past_isb_recruiter: true
   reference/            the four input files above
   data/inbox/           untagged jobs per day (for Claude)
-  data/tags/            tags per day (from Claude)
   tests/                safety test with the 125 campus roles
   web/                  Next.js site
-  mac/                  launchd checker + install script
+  mac/                  launchd checker + install script (on hold, see LinkedIn fallback)
   .claude/agents/job-tagger.md   Haiku subagent definition
   ops/tagging-task-prompt.md     prompt for the Claude scheduled task
-  .github/workflows/    daily-collect.yml, load-tags.yml, linkedin-test.yml
+  .github/workflows/    daily-collect.yml, linkedin-test.yml
 ```
 
 ## Locations
@@ -204,6 +203,8 @@ If a source does not support OR, split that group into single phrases automatica
 
 ## LinkedIn fallback on Pranav's Mac
 
+**On hold (decided 14 Nov 2026, Pranav):** not built for now. Revisit only if the daily GitHub run keeps getting blocked by LinkedIn.
+
 - When the 1 PM GitHub run gets blocked by LinkedIn, it marks LinkedIn "pending" in `runs`.
 - A launchd background job on the Mac runs every 30 minutes while the Mac is awake (and soon after it wakes). It checks for "pending". If found, it runs the LinkedIn module from the Mac using the same pipeline, then clears the flag.
 - Also provide a manual command: `mba-jobs linkedin`.
@@ -227,14 +228,12 @@ If a source does not support OR, split that group into single phrases automatica
 - **Backfill tagging:** rounds of 20 parts × 100, as above.
 - **Thin posts (decided 14 Nov 2026):** a job with under 60 words of description is not tagged and not shown. `tag-export` flags it `too_thin` and leaves it out; the website never reads flagged jobs (`supabase/004_too_thin.sql`). Nothing is deleted.
 - **Company list (decided 14 Nov 2026):** industry and company type come from `config/company_facts.yaml` for every listed employer (applied on `tag-import`; `tag-companies` re-applies it to jobs already tagged). Recruitment agencies and conglomerates keep the tagger's industry per job. Add new employers to the list as they show up.
-- **Daily tagging:** write `ops/tagging-task-prompt.md` for a Claude scheduled task that runs at 2:30 PM and 10:00 PM IST. It clones the repo, tags new inbox files, writes `data/tags/*.json`, commits and pushes. Help Pranav create the scheduled task.
-- `load-tags.yml` GitHub Action: on push to `data/tags/`, load the tags into Supabase, then delete description_trimmed for those jobs.
+- **Daily tagging:** `ops/tagging-task-prompt.md` (written) runs one round on the Mac: up to 2,000 jobs, 20 Haiku helpers x 100 jobs, then `tag-import` saves to Supabase and deletes the descriptions. Pranav is running it by hand to clear the backlog (about 41,000 jobs on 14 Nov 2026). Once the backlog is done, set it up as a Claude scheduled task (planned 2:30 PM and 10:00 PM IST).
 
 ## GitHub Actions
 
 - `linkedin-test.yml`: manual trigger, for Phase 0.
 - `daily-collect.yml`: about 1 PM IST. Cron is UTC, so use an off-the-hour minute to avoid delays, e.g. `23 7 * * *` (12:53 IST). Also allow manual runs.
-- `load-tags.yml`: on push to `data/tags/`.
 - GitHub emails Pranav when a workflow fails. Keep that on.
 
 ## Website (Next.js on Vercel, `web/`)
@@ -270,7 +269,7 @@ If a source does not support OR, split that group into single phrases automatica
 | Secret | Where it goes | Used by |
 |---|---|---|
 | SUPABASE_URL | GitHub Secrets, Mac `.env`, Vercel | All |
-| SUPABASE_SERVICE_KEY (write) | GitHub Secrets, Mac `.env` only | Collector, load-tags |
+| SUPABASE_SERVICE_KEY (write) | GitHub Secrets, Mac `.env` only | Collector, tagging on the Mac |
 | SUPABASE_ANON_KEY (read-only) | Vercel environment variables | Website |
 | Google OAuth client ID and secret | Supabase dashboard (Auth > Providers) only | Sign-in |
 | Resend SMTP key | Supabase dashboard (Auth > SMTP) only | Email sign-in links |
@@ -300,12 +299,12 @@ If a source does not support OR, split that group into single phrases automatica
 **Phase 3: Tagging**
 - Create the job-tagger subagent. Run the 50-job Haiku vs Sonnet comparison.
 - **CHECKPOINT:** Pranav picks the model setup.
-- Tag the backfill in one sequential session. Set up `load-tags.yml`.
-- LinkedIn backfill cards: tag jobs Claude marked "open" once `fill-details` has added their description; mark "skip" jobs as less relevant from the title alone (Phase 5 decides whether the site shows them). Move the open/skip sorting into the scheduled tagging task.
+- Tag the backfill: Pranav runs the tagging rounds by hand (started 14 Nov 2026, about 3-4 days). `load-tags.yml` dropped: tagging writes to Supabase directly.
+- LinkedIn backfill cards: tag jobs Claude marked "open" once `fill-details` has added their description; mark "skip" jobs as less relevant from the title alone (Phase 5 decides whether the site shows them). Done 14 Nov 2026: all 4,581 cards sorted (2,922 open and filled, 1,659 skip); the hourly sorting task is turned off. Daily runs do not need sorting (they check titles and open pages themselves).
 
 **Phase 4: Daily automation**
-- `daily-collect.yml` on GitHub, the Mac checker (`mac/install.sh`), the `mba-jobs linkedin` command.
-- Write `ops/tagging-task-prompt.md` and help Pranav create the 2:30 PM and 10:00 PM scheduled tasks.
+- `daily-collect.yml` on GitHub (built). Mac checker (`mac/install.sh`) and `mba-jobs linkedin`: on hold unless GitHub runs get blocked.
+- `ops/tagging-task-prompt.md` written. Create the 2:30 PM and 10:00 PM scheduled tasks after the backlog is tagged.
 - **CHECKPOINT:** one full day runs end to end without Pranav doing anything.
 
 **Phase 5: Website**
