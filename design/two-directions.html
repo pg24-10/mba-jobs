@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mba-jobs: directions A and C, clickable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;600&family=Jost:wght@400;500;600;700;800&family=Work+Sans:wght@400;500;600&family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#E4E4E2;color:#1B1B1B;font:15px/1.55 "Public Sans",sans-serif}
+.wrap{max-width:1640px;margin:0 auto;padding:48px 28px 80px}
+.intro{max-width:780px}
+.intro h1{font-size:40px;line-height:1.05;font-weight:800;margin:0 0 14px;letter-spacing:-.02em}
+.intro p{margin:0 0 10px;color:#3C3C3C}
+.intro ul{margin:0 0 10px;padding-left:20px;color:#3C3C3C}
+.dir{margin-top:72px}
+.dhd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:32px;margin-bottom:20px;align-items:start}
+.dhd h2{font-size:30px;font-weight:800;margin:0;letter-spacing:-.015em;line-height:1.1}
+.dhd h2 small{display:block;font-size:14px;font-weight:600;color:#6A6A6A;letter-spacing:0;margin-bottom:4px}
+.dhd .th{font-size:17px;margin:8px 0 0}
+.spec{display:grid;grid-template-columns:130px 1fr;gap:6px 16px;font-size:14px;margin:0}
+.spec dt{color:#6A6A6A}.spec dd{margin:0}
+.sw{display:inline-flex;align-items:center;gap:6px;margin:0 12px 4px 0;font-family:"JetBrains Mono",monospace;font-size:12px}
+.sw i{width:16px;height:16px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:28px;align-items:start}
+.lap,.phw{position:relative;overflow:hidden}
+.lap>.scr{width:1200px;height:760px;transform:scale(var(--k,1));transform-origin:0 0;overflow:hidden;box-shadow:0 30px 60px -30px rgba(0,0,0,.35)}
+.phw>.ph{width:360px;height:740px;transform:scale(var(--k,1));transform-origin:0 0;border:10px solid #121212;border-radius:44px;overflow:hidden}
+.foot{margin-top:72px;max-width:780px;font-size:15px}
+.lapnote{display:none;font-size:13px;color:#6A6A6A;margin:0 0 10px}
+@media (max-width:700px){.lap{display:none}.lapnote{display:block}}
+@media (max-width:1100px){.stage{grid-template-columns:1fr}.dhd{grid-template-columns:1fr;gap:14px}.phw{max-width:360px}}
+.scr,.ph{display:flex;flex-direction:column;position:relative}
+.scr *,.ph *{margin:0}
+.ph *{scrollbar-width:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
+input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0;min-width:0;flex:1}
+.mono{font-family:"JetBrains Mono",monospace}
+.kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;font:500 11px "JetBrains Mono",monospace}
+
+/* ============ A · TIMETABLE ============ */
+.A{--paper:#E6EAEE;--row:#FFFFFF;--row2:#F3F5F7;--ink:#0A1A2F;--mut:#55606F;--sig:#D92D20;--line:#D5DBE2;font-family:Archivo,sans-serif;background:var(--paper);color:var(--ink)}
+.A-top{display:flex;align-items:stretch;gap:26px;height:58px;padding:0 32px;background:var(--ink);color:#fff;flex:none}
+.A-brand{font-weight:800;font-stretch:75%;font-size:23px;display:flex;align-items:center;letter-spacing:.01em}
+.A-brand b{color:var(--sig)}
+.A-nav{display:flex;gap:22px;font-size:14px;font-weight:500}
+.A-nav button{display:flex;align-items:center;gap:7px;color:#B8C2CF}
+.A-nav button:hover{color:#fff}
+.A-nav .on{color:#fff;box-shadow:inset 0 -4px var(--sig)}
+.A-nav em{font:normal 600 11px "JetBrains Mono",monospace;background:#1A2B44;padding:1px 6px;color:#fff}
+.A-search{margin-left:auto;align-self:center;width:340px;height:36px;background:#1A2B44;color:#9AA6B6;display:flex;align-items:center;gap:10px;padding:0 10px 0 12px;font-size:13px}
+.A-search input{color:#fff}.A-search input::placeholder{color:#9AA6B6}
+.A-search:focus-within{box-shadow:inset 0 0 0 2px var(--sig)}
+.A-search .kbd{background:#0A1A2F;color:#B8C2CF}
+.A-btn{align-self:center;background:var(--sig);color:#fff;height:36px;padding:0 16px;font-weight:700;font-size:14px;display:flex;align-items:center}
+.A-btn:hover{background:#B42318}
+.A-av{align-self:center;width:36px;height:36px;background:#fff;color:var(--ink);display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+.A-filt{display:flex;gap:6px;padding:16px 32px 10px;align-items:center;flex:none}
+.A-seg{display:flex;background:var(--row);height:32px;flex:none}
+.A-seg span{padding:0 6px 0 12px;display:flex;align-items:center;font-size:12px;color:var(--mut);font-weight:600}
+.A-seg button{padding:0 11px;font-size:13px;font-weight:700}
+.A-seg button:hover{background:var(--row2)}
+.A-seg .on,.A-seg .on:hover{background:var(--ink);color:#fff}
+.A-tg{height:32px;padding:0 12px;display:flex;align-items:center;gap:8px;background:var(--row);font-size:13px;font-weight:600;white-space:nowrap;flex:none}
+.A-tg:hover{background:var(--row2)}
+.A-tg i{width:12px;height:12px;border:2px solid var(--ink);flex:none}
+.A-tg.on i{background:var(--sig);border-color:var(--sig)}
+.A-sort{margin-left:auto;display:flex;gap:18px;font-size:13px;font-weight:600;color:var(--mut)}
+.A-sort button{padding:6px 0}.A-sort button:hover{color:var(--ink)}
+.A-sort .on{color:var(--ink);box-shadow:inset 0 -3px var(--sig)}
+.A-stat{display:flex;align-items:center;gap:8px;padding:0 32px 10px;font-size:12px;color:var(--mut);min-height:34px;flex:none}
+.A-stat b{color:var(--ink);font-weight:600}
+.A-chip{background:var(--ink);color:#fff;padding:2px 8px;font-size:11.5px}
+.A-chip:hover{background:var(--sig)}
+.A-clr{text-decoration:underline;color:var(--ink)}
+.A-stat .r{margin-left:auto}
+.A-main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 460px;gap:14px;padding:0 32px 22px}
+.A-tab{overflow:auto;background:var(--row);position:relative}
+.A-th,.A-tr{display:grid;grid-template-columns:44px 1fr 132px 62px 40px 28px;gap:14px;align-items:center;padding:0 14px 0 18px}
+.A-th{height:34px;font-size:11px;color:var(--mut);background:var(--row2);position:sticky;top:0;z-index:1}
+.A-tr{min-height:68px;padding-top:10px;padding-bottom:10px;cursor:pointer}
+.A-tr:nth-child(odd){background:var(--row2)}
+.A-tr:hover{background:#E9EDF1}
+.A-tr.sel,.A-tr.sel:hover{background:var(--ink);color:#fff}
+.A-tr.sel .A-c{color:#B9C3D0}
+.A-fit{width:40px;height:40px;display:grid;place-items:center;font-weight:900;font-stretch:65%;font-size:27px;border:2px solid var(--ink);flex:none}
+.A-fit.f5{background:var(--sig);border-color:var(--sig);color:#fff}
+.A-fit.f4{background:var(--ink);color:#fff}
+.A-tr.sel .A-fit{border-color:#fff}
+.A-t{font-weight:700;font-size:15.5px;line-height:1.2}
+.A-c{font-size:13px;color:var(--mut);margin-top:3px!important;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.A-isb{font-size:10.5px;font-weight:700;background:var(--ink);color:#fff;padding:1px 6px}
+.A-tr.sel .A-isb{background:var(--sig)}
+.A-tag{font-size:10.5px;font-weight:700;box-shadow:inset 0 0 0 1.5px currentColor;padding:1px 6px;color:var(--sig)}
+.A-tr.sel .A-tag{color:#fff}
+.A-cell{font-size:13px}.A-cell.mono{font-size:12.5px}
+.A-bm{width:28px;height:28px;display:grid;place-items:center;color:#8C96A3}
+.A-bm:hover{color:var(--ink)}.A-bm.on{color:var(--sig)}
+.A-tr.sel .A-bm{color:#B9C3D0}.A-tr.sel .A-bm.on{color:#fff}
+.A-det{background:var(--row);display:flex;flex-direction:column;min-height:0}
+.A-dsc{flex:1;overflow:auto;padding:22px 26px}
+.A-dc{display:flex;gap:8px;align-items:center;font-size:14px;font-weight:600}
+.A-dsc h2{font-size:32px;font-weight:800;font-stretch:78%;line-height:1;margin:10px 0 14px;letter-spacing:-.005em}
+.A-acts{display:flex;gap:6px;margin-bottom:16px!important}
+.A-act{height:32px;padding:0 12px;box-shadow:inset 0 0 0 2px var(--ink);font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px}
+.A-act:hover{background:var(--row2)}
+.A-act.on,.A-act.on:hover{background:var(--ink);color:#fff}
+.A-kv{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.A-kv div{background:var(--row2);padding:8px 10px}
+.A-kv small{display:block;font-size:11px;color:var(--mut)}
+.A-kv b{font-size:12.5px;font-weight:600}
+.A-dsc h3{display:flex;gap:10px;font-size:16px;font-weight:800;margin:22px 0 6px;font-stretch:90%}
+.A-dsc h3 span{color:var(--sig);font-family:"JetBrains Mono",monospace;font-size:13px;padding-top:2px}
+.A-dsc ul{padding-left:18px;font-size:14px;line-height:1.5}
+.A-sk span{display:inline-block;background:var(--row2);padding:3px 8px;font-size:12px;margin:0 4px 4px 0;font-family:"JetBrains Mono",monospace}
+.A-disc{font-size:11.5px;color:var(--mut);margin-top:18px!important}
+.A-dbar{padding:12px 26px 16px;border-top:1px solid var(--line);flex:none}
+.A-go{width:100%;display:flex;justify-content:space-between;align-items:center;background:var(--sig);color:#fff;font-weight:700;padding:14px 16px;font-size:14.5px}
+.A-go:hover{background:#B42318}
+.A-empty{padding:40px 24px;font-size:15px;line-height:1.5}
+.A-empty button{text-decoration:underline;font-weight:700}
+.A-toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;font-size:13.5px;display:flex;gap:16px;align-items:center;width:max-content;max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:5}
+.A-toast button{color:#FF9B8F;font-weight:700}
+/* A phone */
+.A.ph .A-top{height:52px;padding:0 16px;gap:10px;justify-content:space-between}
+.A.ph .A-av{width:32px;height:32px}
+.A-psearch{margin:12px 16px 0;height:40px;background:var(--row);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--mut);font-size:14px;flex:none}
+.A-psearch:focus-within{box-shadow:inset 0 0 0 2px var(--ink)}
+.A-chips{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;flex:none}
+.A-pstat{padding:0 16px 8px;font-size:11.5px;color:var(--mut);display:flex;justify-content:space-between;flex:none}
+.A-pstat button{color:var(--ink);font-weight:600}
+.A-pl{flex:1;overflow:auto;background:var(--row)}
+.A-pr{display:grid;grid-template-columns:40px 1fr;gap:12px;padding:12px 16px;cursor:pointer}
+.A-pr:nth-child(odd){background:var(--row2)}
+.A-pr .A-t{font-size:14.5px}
+.A-pm{font-size:11.5px;color:var(--mut);margin-top:4px!important}
+.A-pn{display:flex;background:var(--ink);color:#B8C2CF;font-size:13px;font-weight:600;height:56px;flex:none}
+.A-pn button{flex:1;display:grid;place-items:center}.A-pn .on{color:#fff;box-shadow:inset 0 4px var(--sig)}
+.A-back{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px}
+.A.ph .A-dsc{padding:18px 16px;background:var(--row)}
+.A.ph .A-dsc h2{font-size:28px}
+.A-pbar{display:flex;gap:8px;padding:10px 12px;background:var(--row);border-top:1px solid var(--line);flex:none}
+.A-pbar .A-go{flex:1;padding:13px 14px;font-size:14px}
+.A-pbar .A-act{height:auto;width:50px;justify-content:center;flex:none}
+.A.ph .A-toast{bottom:76px;width:calc(100% - 24px);font-size:13px;justify-content:space-between}
+
+/* ============ C · CAMPUS POSTER ============ */
+.C{--bg:#F1F2F4;--w:#FFFFFF;--ink:#141414;--mut:#5E6268;--r:#D7263D;--y:#F5C400;--b:#1D4ED8;--blk:#141414;--line:#E4E5E8;font-family:"Work Sans",sans-serif;background:var(--bg);color:var(--ink)}
+.C-top{display:flex;align-items:center;gap:22px;height:68px;padding:0 32px;flex:none}
+.C-logo{display:flex;align-items:center;gap:10px;font:700 23px Jost,sans-serif;letter-spacing:-.01em}
+.C-mark{display:flex;gap:3px}
+.C-nav{display:flex;gap:4px;font-size:14px;font-weight:500}
+.C-nav button{padding:8px 14px;border-radius:999px;display:flex;gap:7px;align-items:center}
+.C-nav button:hover{background:var(--w)}
+.C-nav em{font-style:normal;font-size:11.5px;font-weight:600;background:var(--line);border-radius:999px;padding:0 7px}
+.C-nav .on,.C-nav .on:hover{background:var(--ink);color:#fff}
+.C-nav .on em{background:#3A3A3A}
+.C-search{margin-left:auto;width:320px;height:42px;border-radius:999px;background:var(--w);display:flex;align-items:center;gap:10px;padding:0 16px;color:var(--mut);font-size:14px}
+.C-search:focus-within{box-shadow:inset 0 0 0 2px var(--ink)}
+.C-search input{color:var(--ink)}
+.C-search .kbd{background:var(--bg);border-radius:4px;color:var(--mut)}
+.C-btn{height:42px;border-radius:999px;background:var(--y);padding:0 18px;font-weight:600;font-size:14px;display:flex;align-items:center}
+.C-btn:hover{background:#E3B500}
+.C-av{width:40px;height:40px;border-radius:50%;background:var(--b);color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px;flex:none}
+.C-lanes{display:flex;gap:8px;padding:0 32px 12px;flex:none}
+.C-tile{position:relative;overflow:hidden;height:80px;min-width:74px;flex-basis:0;padding:9px 10px;text-align:left;display:flex;flex-direction:column;justify-content:flex-end;color:#fff;transition:transform .15s,opacity .15s}
+.C-tile:hover{transform:translateY(-2px)}
+.C-tile svg{position:absolute;right:-14px;top:-16px;width:54px;opacity:.95}
+.C-tile b{position:relative;font:700 19px/1 Jost,sans-serif}
+.C-tile small{position:relative;font-size:11.5px;font-weight:500;line-height:1.15;margin-top:3px!important}
+.C-tile.y{background:var(--y);color:var(--ink)}.C-tile.b{background:var(--b)}.C-tile.r{background:var(--r)}.C-tile.k{background:var(--blk)}
+.C-tile.w{background:var(--w);color:var(--ink)}
+.C-tile.on{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--ink)}
+.C-tile.dim{opacity:.32}.C-tile.dim:hover{opacity:.7}
+.C-filt{display:flex;gap:6px;align-items:center;padding:4px 32px 10px;flex:none}
+.C-seg{display:flex;background:var(--w);border-radius:999px;padding:3px;height:38px;align-items:center;flex:none}
+.C-seg span{padding:0 6px 0 10px;font-size:12.5px;color:var(--mut)}
+.C-seg button{height:32px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:600}
+.C-seg .on{background:var(--ink);color:#fff}
+.C-pill{height:38px;padding:0 15px;border-radius:999px;background:var(--w);font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+.C-pill:hover{box-shadow:inset 0 0 0 2px var(--line)}
+.C-pill.on{background:var(--ink);color:#fff;box-shadow:none}
+.C-sort{margin-left:auto;display:flex;gap:2px;align-items:center}
+.C-sort span{font-size:12.5px;color:var(--mut);margin-right:4px!important}
+.C-sort button{height:34px;padding:0 12px;border-radius:999px;font-size:13px;color:var(--mut);font-weight:500}
+.C-sort .on{color:var(--ink);background:var(--w);font-weight:600}
+.C-stat{display:flex;gap:8px;align-items:center;padding:0 32px 10px;font-size:12.5px;color:var(--mut);min-height:32px;flex:none}
+.C-stat b{color:var(--ink);font-weight:600}
+.C-chip{background:var(--w);border-radius:999px;padding:3px 10px;color:var(--ink);font-size:12px;font-weight:500}
+.C-chip:hover{background:var(--ink);color:#fff}
+.C-clr{text-decoration:underline;color:var(--ink)}
+.C-stat .r{margin-left:auto}
+.C-main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 500px;gap:16px;padding:0 32px 24px}
+.C-list{overflow:auto;display:flex;flex-direction:column;gap:6px;position:relative}
+.C-row{display:grid;grid-template-columns:30px 1fr 32px;gap:14px;background:var(--w);padding:14px 12px 14px 16px;cursor:pointer;text-align:left;flex:none}
+.C-row:hover{box-shadow:inset 0 0 0 2px #D9DBDF}
+.C-row.sel,.C-row.sel:hover{box-shadow:inset 0 0 0 3px var(--ink)}
+.C-row>svg{width:28px;height:28px;margin-top:2px!important}
+.C-t{font:600 18px/1.15 Jost,sans-serif}
+.C-c{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mut);margin-top:4px!important;flex-wrap:wrap}
+.C-isb{font-size:11px;font-weight:600;background:var(--ink);color:#fff;padding:2px 8px;border-radius:999px}
+.C-tag{font-size:11px;font-weight:600;background:var(--y);color:var(--ink);padding:2px 8px;border-radius:999px}
+.C-f{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--mut);margin-top:6px!important;align-items:center}
+.C-f b{color:var(--ink);font-weight:600}
+.C-dots{display:inline-flex;gap:3px;align-items:center;color:var(--ink);font-weight:600}
+.C-dots i{width:7px;height:7px;border-radius:50%;background:#D4D6DA}.C-dots i.on{background:var(--ink)}
+.C-bm{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#9A9EA5}
+.C-bm:hover{background:var(--bg);color:var(--ink)}.C-bm.on{color:var(--r)}
+.C-det{background:var(--w);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.C-dsc{flex:1;overflow:auto}
+.C-dh{position:relative;overflow:hidden;padding:20px 24px 22px;color:#fff;min-height:160px;display:flex;flex-direction:column;justify-content:flex-end}
+.C-dh.y{background:var(--y);color:var(--ink)}.C-dh.b{background:var(--b)}.C-dh.r{background:var(--r)}.C-dh.k{background:var(--blk)}
+.C-dh>svg{position:absolute;width:170px;right:-62px;top:-82px}
+.C-dh .lbl{position:relative;font-size:13px;font-weight:600}
+.C-dh h2{position:relative;max-width:380px;font:700 26px/1.1 Jost,sans-serif;margin-top:6px!important;letter-spacing:-.01em}
+.C-dh .co{position:relative;display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px!important;flex-wrap:wrap}
+.C-dh .C-isb{background:#fff;color:var(--ink)}
+.C-db{padding:18px 24px 24px}
+.C-acts{display:flex;gap:6px;margin-bottom:18px!important}
+.C-act{height:38px;padding:0 16px;border-radius:999px;box-shadow:inset 0 0 0 2px var(--ink);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.C-act:hover{background:var(--bg)}
+.C-act.on,.C-act.on:hover{background:var(--ink);color:#fff}
+.C-kv{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.C-kv small{display:block;font-size:12px;color:var(--mut)}.C-kv b{font-size:14px;font-weight:600}
+.C-db h3{font:600 18px Jost,sans-serif;margin:22px 0 6px}
+.C-db ul{padding-left:18px;font-size:14px;line-height:1.5}
+.C-sk span{display:inline-block;background:var(--bg);border-radius:999px;padding:4px 12px;font-size:12.5px;margin:0 4px 6px 0}
+.C-disc{font-size:12px;color:var(--mut);margin-top:16px!important}
+.C-dbar{padding:12px 24px 16px;flex:none;border-top:1px solid var(--line)}
+.C-go{width:100%;height:50px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:14.5px;display:flex;justify-content:center;align-items:center;gap:8px}
+.C-go:hover{background:#333}
+.C-empty{background:var(--w);padding:36px 24px;font-size:15px;line-height:1.5}
+.C-empty button{text-decoration:underline;font-weight:600}
+.C-toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:999px;padding:12px 22px;font-size:13.5px;display:flex;gap:16px;align-items:center;width:max-content;max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:5}
+.C-toast button{color:var(--y);font-weight:600}
+/* C phone */
+.C.ph .C-top{height:56px;padding:0 16px;justify-content:space-between}
+.C.ph .C-av{width:34px;height:34px}
+.C-psearch{margin:0 14px;height:42px;border-radius:999px;background:var(--w);display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--mut);font-size:14px;flex:none}
+.C-psearch:focus-within{box-shadow:inset 0 0 0 2px var(--ink)}
+.C-psearch input{color:var(--ink)}
+.C.ph .C-lanes{padding:12px 14px 4px;overflow-x:auto}
+.C.ph .C-tile{flex:none;width:86px;height:70px}
+.C.ph .C-tile.on{box-shadow:inset 0 0 0 3px var(--ink)}
+.C-chips{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;flex:none}
+.C-chips .C-pill{height:34px;padding:0 13px}
+.C-pstat{padding:0 16px 8px;font-size:12px;color:var(--mut);display:flex;justify-content:space-between;flex:none}
+.C-pstat button{color:var(--ink);font-weight:600}
+.C-pl{flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:0 12px 12px}
+.C-pl .C-row{padding:12px 14px;gap:12px;grid-template-columns:24px 1fr}
+.C-pl .C-row>svg{width:22px;height:22px}
+.C-pl .C-t{font-size:16px}
+.C-pn{display:flex;gap:4px;padding:10px 12px;background:var(--w);flex:none;font-size:13px;font-weight:500}
+.C-pn button{flex:1;text-align:center;padding:9px 0;border-radius:999px}.C-pn .on{background:var(--ink);color:#fff}
+.C.ph .C-dsc{background:var(--w)}
+.C.ph .C-dh{min-height:210px;padding:16px 18px 20px;justify-content:space-between}
+.C.ph .C-dh>svg{width:150px;right:-50px;top:-60px}
+.C.ph .C-dh h2{font-size:23px;max-width:290px}
+.C-back{position:relative;width:38px;height:38px;border-radius:50%;background:#fff;color:#141414;display:grid;place-items:center;font-size:20px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.C.ph .C-db{padding:16px 18px 20px}
+.C.ph .C-act{padding:0 13px;font-size:13px}
+.C-pbar{display:flex;gap:8px;padding:10px 12px;background:var(--w);border-top:1px solid var(--line);flex:none}
+.C-pbar .C-go{flex:1;height:48px;font-size:14px}
+.C-pbar .C-act{width:48px;height:48px;justify-content:center;padding:0;flex:none}
+.C.ph .C-toast{bottom:80px;width:calc(100% - 24px);font-size:13px;justify-content:space-between;border-radius:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section class="intro">
+<h1>A and C, now clickable.</h1>
+<p>I removed the big "new roles" number. In its place is a thin line that says how many roles match, which filters are on (click a filter's × to remove it) and when the list was last updated.</p>
+<p>Everything on both screens works, so try it like a real site:</p>
+<ul>
+<li>Type in search, change Fit, switch filters on and off, change the sort</li>
+<li>Save, Mark applied and Hide (with Undo), then check the Saved and Applied tabs</li>
+<li>On the phones, tap a job to open the full job page, then tap Back</li>
+<li>On a laptop, point at a screen and use ↑ ↓ (or J K) to move, S to save, / to search</li>
+</ul>
+<p>The laptop and phone in each direction share the same data, so a job saved on one shows as saved on the other.</p>
+</section>
+
+<section class="dir">
+<div class="dhd">
+<div><h2><small>Direction A</small>Timetable</h2><p class="th">Jobs read like a station departures board: a strict grid you can scan fast, with the job you're reading flipped to dark.</p></div>
+<dl class="spec">
+<dt>Fonts</dt><dd>Archivo, squeezed narrow for headings and numbers. JetBrains Mono for pay, dates and facts.</dd>
+<dt>Colours</dt><dd><span class="sw"><i style="background:#E6EAEE"></i>#E6EAEE paper</span><span class="sw"><i style="background:#0A1A2F"></i>#0A1A2F ink</span><span class="sw"><i style="background:#D92D20"></i>#D92D20 signal red</span></dd>
+<dt>What changed</dt><dd>No big number. Save, Applied and Hide sit at the top of the job. The apply button stays fixed at the bottom of the job, so you never scroll to find it. A bookmark on every row saves in one click.</dd>
+</dl>
+</div>
+<div class="stage"><p class="lapnote">Open this page on a laptop to see the laptop layout too.</p><div class="lap" data-w="1200" data-h="760"><div class="scr A" id="A"></div></div><div><div class="phw" data-w="360" data-h="740"><div class="ph A" id="Ap"></div></div></div></div>
+</section>
+
+<section class="dir">
+<div class="dhd">
+<div><h2><small>Direction C</small>Campus poster</h2><p class="th">Each function has its own colour and shape, so you can spot your lane at a glance.</p></div>
+<dl class="spec">
+<dt>Fonts</dt><dd>Jost (geometric, Futura-like) for headings, Work Sans for text</dd>
+<dt>Colours</dt><dd><span class="sw"><i style="background:#F1F2F4"></i>#F1F2F4 page</span><span class="sw"><i style="background:#141414"></i>#141414 ink</span><span class="sw"><i style="background:#D7263D"></i>#D7263D red</span><span class="sw"><i style="background:#F5C400"></i>#F5C400 yellow</span><span class="sw"><i style="background:#1D4ED8"></i>#1D4ED8 blue</span></dd>
+<dt>What changed</dt><dd>The function tiles moved into one strip across the top, which gives the job page much more room. It now opens next to the list on a laptop, and as its own screen on the phone. The apply button stays fixed at the bottom.</dd>
+</dl>
+</div>
+<div class="stage"><p class="lapnote">Open this page on a laptop to see the laptop layout too.</p><div class="lap" data-w="1200" data-h="760"><div class="scr C" id="C"></div></div><div><div class="phw" data-w="360" data-h="740"><div class="ph C" id="Cp"></div></div></div></div>
+</section>
+
+<p class="foot">Nine real jobs are used as samples. The function counts and the update time are placeholders. Once you pick one (or a mix), I'll write its fonts, colours and rules into a design file in the repo and build the real site in that style.</p>
+</div>
+
+<script>
+const J=[
+{t:"Senior Product Management Analyst - Hardware & Solution Strategy",c:"Avaya India",city:"Remote (India)",mode:"Remote",ex:"7–12 yrs",sal:"₹30–45 LPA",h:20,src:"Naukri",isb:true,fn:"Product",sen:"Manager",mba:"Not mentioned",fit:5,d:["Analyse attach rates and supply trends for growth ideas","Build business cases and pricing for solutions","Create sales playbooks and pricing tools"],l:["5+ years in product or BI within enterprise software or telecom","Strong analytical and executive communication skills"],k:["Sales forecasting","Business analytics","Product analysis","Pricing","Business intelligence","Sales enablement"]},
+{t:"Solution Advisor Senior Specialist (AI Expertise)",c:"SAP",city:"Mumbai",ex:"",sal:"",h:9,src:"LinkedIn",isb:true,fn:"Consulting",sen:"Associate",mba:"Not mentioned",fit:5,app:25,d:["Engage customers through the sales cycle with demos","Position SAP AI capabilities against business problems","Build rapid prototypes and demo content"],l:["Strong AI and business value selling skills","Comfort using AI tools in customer work"],k:["Solution advisory","AI","Value selling","Demos","Prototyping","SAP","Customer discovery"]},
+{t:"General Manager",c:"Woways",city:"Hyderabad",ex:"4–7 yrs",sal:"₹6–12 LPA",h:14,src:"Naukri",isb:false,fn:"General management",sen:"Manager",mba:"Preferred",fit:5,d:["Own P&L, budgets, forecasts and cost control","Launch new business verticals and scale operations","Lead cross-functional teams and set KPIs and SOPs"],l:["Seven or more years in general management, operations or sales leadership","EdTech, SaaS or startup experience preferred"],k:["P&L management","Business strategy","Budget planning","Business building","Sales strategy","Team leadership","SOPs","MIS reporting"]},
+{t:"Associate Product Owner",c:"Sevaro",city:"Remote (India)",mode:"Remote",ex:"7–10 yrs",sal:"₹15–30 LPA",h:12,src:"Naukri",isb:false,fn:"Product",sen:"Associate",mba:"Not mentioned",fit:5,d:["Own and prioritise the product backlog","Write user stories and acceptance criteria","Run sprint ceremonies and release readiness"],l:["Two or more years in product ownership or business analysis","Hands-on Jira and Agile experience"],k:["Product ownership","Backlog management","Jira","Agile","User stories"]},
+{t:"Manager – Talent Assessment & Performance Management – Human Capital",c:"D. E. Shaw India",city:"Hyderabad",ex:"4–5 yrs",sal:"",h:22,src:"LinkedIn",isb:true,fn:"HR",sen:"Manager",mba:"Required",fit:4,app:200,d:["Run job analyses to define traits to measure","Configure assessments with the tech team and vendors","Design a new talent assessment framework"],l:["MBA from a top-tier college plus 4-5 years in HR","Strong project and stakeholder management"],k:["Talent assessment","Competency mapping","Performance management","Recruitment","Stakeholder management","Market intelligence"]},
+{t:"Payment Transformation - Director",c:"EY",city:"Delhi NCR",ex:"12–20 yrs",sal:"",h:11,src:"Naukri",isb:true,fn:"Consulting",sen:"Director",mba:"Not mentioned",fit:4,d:["Lead end-to-end payments transformation programmes","Shape product strategy across cards and payment propositions","Engage senior stakeholders and run client workshops"],l:["Deep cards and payments domain knowledge","Experience leading large transformation work for financial firms"],k:["Payments","Card lifecycle","Product strategy","Transformation","Operating model","Stakeholder management"]},
+{t:"Builder - Program Manager",c:"Cars24",city:"Delhi NCR",ex:"",sal:"",h:16,src:"LinkedIn",isb:true,fn:"Program management",sen:"Manager",mba:"Not mentioned",fit:4,app:52,d:["Run dialer campaigns, queues and routing setup","Coordinate integrations with CRM and vendors","Monitor call health and resolve incidents"],l:["Hands-on contact centre and dialer experience","Ability to bridge business and technology teams"],k:["Dialer","Contact centre","CRM","Programme management","Vendor management","Lead management","UAT","Telephony"]},
+{t:"Financial Analysis Specialist",c:"Technogeeks",city:"Pune",mode:"Hybrid",ex:"4–9 yrs",sal:"₹6–16 LPA",h:18,src:"Naukri",isb:false,fn:"Finance",sen:"Manager",mba:"Not mentioned",fit:4,d:["Build Excel financial models and forecasts","Improve finance operations and reporting processes","Prepare KPI analysis for senior management"],l:["Four or more years in finance modelling or analysis","Strong Excel skills"],k:["Financial modelling","Excel","Budgeting","Forecasting","Financial analysis","Reporting"]},
+{t:"Sales Manager",c:"Lohia Jain Group",city:"Pune",ex:"",sal:"",h:7,src:"LinkedIn",isb:true,fn:"Sales / BD",sen:"Manager",mba:"Preferred",fit:4,app:28,d:["Manage the sales pipeline, site visits and negotiations","Build relationships with customers, brokers and channel partners","Prepare sales reports and support marketing"],l:["Real estate or related sales experience","Track record of meeting sales targets"],k:["Sales","Negotiation","Pipeline management","Channel partners","CRM","Real estate"]}
+];
+const FNS=[["Sales / BD","Sales & BD",2502],["Program management","Program mgmt",1637],["Operations","Operations",1415],["Consulting","Consulting",1195],["Finance","Finance",1069],["Marketing","Marketing",1036],["Product","Product",905],["Analytics","Analytics",896],["HR","HR",400],["Supply chain","Supply chain",357],["General management","General mgmt",255]];
+const TG=[["isb","ISB recruiters"],["sal","Salary shown"],["fresh","Posted in 12h"],["remote","Remote"]];
+const SORTS=[["fit","Best fit"],["new","Newest"],["sal","Highest pay"]];
+const UPD="Updated 13:42 IST";
+const DISC="Summary written by mba-jobs. The original post has the full details.";
+
+const e=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const loc=j=>j.city+(j.mode&&j.mode!=="Remote"?" · "+j.mode:"");
+const pay=j=>j.sal?j.sal.replace("₹","").replace(" LPA",""):"—";
+const salMax=j=>j.sal?+j.sal.match(/(\d+)\s*LPA/)[1]:-1;
+const kv=j=>[["Location",j.city+(j.mode?" · "+j.mode:"")],["Experience",j.ex||"Not stated"],["Salary",j.sal||"Not shown"],["Function",j.fn],["Level",j.sen],["MBA",j.mba],["Posted",j.h+"h ago on "+j.src],["Applicants",j.app?j.app+(j.app>=200?"+":""):"Not shown"]];
+const li=a=>a.map(x=>"<li>"+e(x)+"</li>").join("");
+const mag='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
+const bm=on=>'<svg width="16" height="16" viewBox="0 0 24 24" fill="'+(on?"currentColor":"none")+'" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
+const fitTip=n=>'Fit '+n+' of 5: how well this role suits an MBA';
+
+/* ---------- shared state and filtering ---------- */
+const mk=()=>({q:"",fit:3,isb:false,sal:false,fresh:false,remote:false,sort:"fit",sel:null,view:"jobs",saved:new Set([1]),applied:new Set(),hidden:new Set(),fn:null,pd:null,toast:null,undo:null});
+const ST={A:mk(),C:mk()};
+function rows(st,view){
+  view=view||st.view;const q=st.q.trim().toLowerCase();
+  const ids=J.map((j,i)=>i).filter(i=>{const j=J[i];
+    if(st.hidden.has(i))return false;
+    if(view==="saved")return st.saved.has(i);
+    if(view==="applied")return st.applied.has(i);
+    if(j.fit<st.fit)return false;
+    if(st.isb&&!j.isb)return false;
+    if(st.sal&&!j.sal)return false;
+    if(st.fresh&&j.h>12)return false;
+    if(st.remote&&j.mode!=="Remote")return false;
+    if(st.fn&&j.fn!==st.fn)return false;
+    if(q&&![j.t,j.c,j.city,j.fn].concat(j.k).join(" ").toLowerCase().includes(q))return false;
+    return true;});
+  const by={fit:(a,b)=>J[b].fit-J[a].fit||J[a].h-J[b].h,new:(a,b)=>J[a].h-J[b].h,sal:(a,b)=>salMax(J[b])-salMax(J[a])||J[b].fit-J[a].fit}[st.sort];
+  return ids.sort(by);
+}
+const shortFn=f=>(FNS.find(x=>x[0]===f)||[f,f])[1];
+function active(st){
+  const a=[];
+  if(st.q.trim())a.push(["q",'"'+st.q.trim()+'"']);
+  if(st.fn)a.push(["fn",shortFn(st.fn)]);
+  if(st.fit!==3)a.push(["fit","Fit "+(st.fit===5?"5":st.fit+"+")]);
+  TG.forEach(([k,l])=>{if(st[k])a.push([k,l]);});
+  return a;
+}
+function statusHTML(D,st,list){
+  const n=list.length;
+  if(st.view!=="jobs")return '<b>'+n+' '+(st.view==="saved"?"saved":"applied")+' '+(n===1?"role":"roles")+'</b><span class="r">'+UPD+'</span>';
+  const a=active(st);
+  return '<b>'+n+' '+(n===1?"role":"roles")+' match</b>'+(a.length?'<span>·</span>'+a.map(([k,l])=>'<button class="'+D+'-chip" data-x="'+D+'|rm|'+k+'" title="Remove this filter">'+e(l)+' ×</button>').join("")+'<button class="'+D+'-clr" data-x="'+D+'|clear">Clear all</button>':'<span>· fit 3 or better, best fit first</span>')+'<span class="r">'+UPD+'</span>';
+}
+function emptyHTML(D,st){
+  if(st.view==="saved")return 'Nothing saved yet. Use the bookmark or Save on any role to keep it here.';
+  if(st.view==="applied")return 'No applications tracked yet. Use "Mark applied" after you apply on the original site.';
+  return 'No roles match these filters. <button data-x="'+D+'|clear">Clear all filters</button>';
+}
+const navBtns=(D,st)=>[["jobs","Jobs",rows(st,"jobs").length],["saved","Saved",rows(st,"saved").length],["applied","Applied",rows(st,"applied").length]].map(([v,l,n])=>'<button class="'+(st.view===v?"on":"")+'" data-x="'+D+'|view|'+v+'">'+l+'<em>'+n+'</em></button>').join("");
+const toastHTML=(D,st,ph)=>st.toast&&st.toast.ph===ph?'<div class="'+D+'-toast" role="status"><span>'+e(st.toast.msg)+'</span>'+(st.undo?'<button data-x="'+D+'|undo">Undo</button>':"")+'</div>':"";
+
+/* ---------- A · Timetable ---------- */
+const aFit=j=>'<span class="A-fit f'+j.fit+'" title="'+fitTip(j.fit)+'">'+j.fit+'</span>';
+const aIsb=j=>j.isb?'<span class="A-isb">ISB recruiter</span>':"";
+const aTags=(st,i)=>(st.applied.has(i)?'<span class="A-tag">Applied</span>':"");
+const aFilters=st=>'<div class="A-seg"><span>Fit</span>'+[3,4,5].map(n=>'<button class="'+(st.fit===n?"on":"")+'" data-x="A|fit|'+n+'">'+(n===5?"5":n+"+")+'</button>').join("")+'</div>'+TG.map(([k,l])=>'<button class="A-tg'+(st[k]?" on":"")+'" data-x="A|tog|'+k+'"><i></i>'+l+'</button>').join("");
+function aDetail(st,i){const j=J[i];return '<div class="A-dc">'+e(j.c)+aIsb(j)+'</div><h2>'+e(j.t)+'</h2>'+
+  '<div class="A-acts"><button class="A-act'+(st.saved.has(i)?" on":"")+'" data-x="A|save|'+i+'">'+bm(st.saved.has(i))+(st.saved.has(i)?"Saved":"Save")+'</button><button class="A-act'+(st.applied.has(i)?" on":"")+'" data-x="A|applied|'+i+'">'+(st.applied.has(i)?"✓ Applied":"Mark applied")+'</button><button class="A-act" data-x="A|hide|'+i+'">Hide</button></div>'+
+  '<div class="A-kv">'+kv(j).map(([a,b])=>'<div><small>'+a+'</small><b class="mono">'+e(b)+'</b></div>').join("")+'</div>'+
+  '<h3><span>01</span>What you\'d do</h3><ul>'+li(j.d)+'</ul><h3><span>02</span>What they\'re looking for</h3><ul>'+li(j.l)+'</ul><h3><span>03</span>Key skills</h3><div class="A-sk">'+j.k.map(x=>"<span>"+e(x)+"</span>").join("")+'</div><p class="A-disc">'+DISC+'</p>';}
+function A_lap(st,list){
+  const i=st.sel;
+  return '<header class="A-top"><span class="A-brand">MBA<b>/</b>JOBS</span><nav class="A-nav">'+navBtns("A",st)+'</nav><label class="A-search">'+mag+'<input id="A-q" data-q="A" value="'+e(st.q)+'" placeholder="Role, company or skill" autocomplete="off"><span class="kbd">/</span></label><button class="A-btn" data-x="A|resume">Match my resume</button><span class="A-av">PG</span></header>'+
+  '<div class="A-filt">'+aFilters(st)+'<div class="A-sort">'+SORTS.map(([k,l])=>'<button class="'+(st.sort===k?"on":"")+'" data-x="A|sort|'+k+'">'+l+'</button>').join("")+'</div></div>'+
+  '<div class="A-stat mono">'+statusHTML("A",st,list)+'</div>'+
+  '<div class="A-main"><div class="A-tab" data-keep="list"><div class="A-th mono"><span>fit</span><span>role</span><span>city</span><span>₹ LPA</span><span>age</span><span></span></div>'+
+  (list.length?list.map(n=>{const x=J[n];return '<div class="A-tr'+(n===i?" sel":"")+'" data-x="A|sel|'+n+'">'+aFit(x)+'<div><div class="A-t">'+e(x.t)+'</div><div class="A-c">'+e(x.c)+aIsb(x)+aTags(st,n)+'</div></div><div class="A-cell">'+e(loc(x))+'</div><div class="A-cell mono">'+pay(x)+'</div><div class="A-cell mono">'+x.h+'h</div><button class="A-bm'+(st.saved.has(n)?" on":"")+'" data-x="A|save|'+n+'" title="'+(st.saved.has(n)?"Remove from saved":"Save")+'">'+bm(st.saved.has(n))+'</button></div>';}).join(""):'<div class="A-empty">'+emptyHTML("A",st)+'</div>')+
+  '</div><aside class="A-det">'+(i!=null?'<div class="A-dsc" data-keep="det">'+aDetail(st,i)+'</div><div class="A-dbar"><button class="A-go" data-x="A|apply|'+i+'">Read the full post and apply on '+J[i].src+'<span>→</span></button></div>':'<div class="A-empty">Pick a role on the left to see it here.</div>')+'</aside></div>'+toastHTML("A",st,false);
+}
+function A_ph(st,list){
+  const i=st.pd;
+  if(i!=null)return '<header class="A-top"><button class="A-back" data-x="A|back">← Back</button>'+aFit(J[i])+'</header><div class="A-dsc" data-keep="pd">'+aDetail(st,i)+'</div><div class="A-pbar"><button class="A-act'+(st.saved.has(i)?" on":"")+'" data-x="A|save|'+i+'" title="Save">'+bm(st.saved.has(i))+'</button><button class="A-go" data-x="A|apply|'+i+'">Apply on '+J[i].src+'<span>→</span></button></div>'+toastHTML("A",st,true);
+  return '<header class="A-top"><span class="A-brand">MBA<b>/</b>JOBS</span><span class="A-av">PG</span></header>'+
+  '<label class="A-psearch">'+mag+'<input id="Ap-q" data-q="A" value="'+e(st.q)+'" placeholder="Role, company or skill" autocomplete="off"></label>'+
+  (st.view==="jobs"?'<div class="A-chips">'+aFilters(st)+'</div>':'<div style="height:10px;flex:none"></div>')+
+  '<div class="A-pstat mono"><span>'+list.length+' '+(st.view==="jobs"?"match":st.view)+(active(st).length&&st.view==="jobs"?' · <button data-x="A|clear">clear</button>':"")+'</span>'+(st.view==="jobs"?'<button data-x="A|csort">Sort: '+SORTS.find(s=>s[0]===st.sort)[1]+' ▾</button>':"")+'</div>'+
+  '<div class="A-pl" data-keep="pl">'+(list.length?list.map(n=>{const x=J[n];return '<div class="A-pr" data-x="A|open|'+n+'">'+aFit(x)+'<div><div class="A-t">'+e(x.t)+'</div><div class="A-c">'+e(x.c)+aIsb(x)+aTags(st,n)+(st.saved.has(n)?'<span class="A-tag">Saved</span>':"")+'</div><div class="A-pm mono">'+e([x.city,x.sal?pay(x)+' LPA':'',x.h+'h'].filter(Boolean).join(' · '))+'</div></div></div>';}).join(""):'<div class="A-empty">'+emptyHTML("A",st)+'</div>')+'</div>'+
+  '<nav class="A-pn">'+[["jobs","Jobs"],["saved","Saved"],["applied","Applied"]].map(([v,l])=>'<button class="'+(st.view===v?"on":"")+'" data-x="A|view|'+v+'">'+l+'</button>').join("")+'</nav>'+toastHTML("A",st,true);
+}
+
+/* ---------- C · Campus poster ---------- */
+const FC={"Sales / BD":["y","circle"],"Program management":["b","tri"],"Operations":["k","square"],"Consulting":["r","square"],"Finance":["y","tri"],"Marketing":["r","circle"],"Product":["b","circle"],"Analytics":["b","square"],"HR":["r","half"],"Supply chain":["k","tri"],"General management":["k","half"]};
+const COL={y:"#F5C400",b:"#1D4ED8",r:"#D7263D",k:"#141414"};
+const ALT={y:"#D7263D",b:"#F5C400",r:"#F5C400",k:"#D7263D"};
+const shape=(kind,col)=>{const p={circle:'<circle cx="50" cy="50" r="50"/>',square:'<rect width="100" height="100"/>',tri:'<polygon points="50,0 100,100 0,100"/>',half:'<path d="M0 100A50 50 0 0 1 100 100Z" transform="translate(0,-25)"/>'}[kind];return '<svg viewBox="0 0 100 100" fill="'+col+'" aria-hidden="true">'+p+'</svg>';};
+const cIsb=j=>j.isb?'<span class="C-isb">Past ISB recruiter</span>':"";
+const cTags=(st,i,ph)=>(st.applied.has(i)?'<span class="C-tag">Applied</span>':"")+(ph&&st.saved.has(i)?'<span class="C-tag">Saved</span>':"");
+const dots=n=>'<span class="C-dots" title="'+fitTip(n)+'">'+[1,2,3,4,5].map(i=>'<i class="'+(i<=n?"on":"")+'"></i>').join("")+' Fit '+n+'</span>';
+const cLanes=st=>'<button class="C-tile w'+(st.fn?" dim":" on")+'" data-x="C|fn|" style="flex-grow:'+Math.sqrt(12270)/2+'"><b>12,270</b><small>All roles</small></button>'+FNS.map(([f,s,n])=>{const [c,k]=FC[f];return '<button class="C-tile '+c+(st.fn===f?" on":st.fn?" dim":"")+'" data-x="C|fn|'+f+'" style="flex-grow:'+Math.sqrt(n)+'" title="Show only '+s+'">'+shape(k,ALT[c])+'<b>'+n.toLocaleString("en-IN")+'</b><small>'+s+'</small></button>';}).join("");
+const cFilters=st=>'<div class="C-seg"><span>Fit</span>'+[3,4,5].map(n=>'<button class="'+(st.fit===n?"on":"")+'" data-x="C|fit|'+n+'">'+(n===5?"5":n+"+")+'</button>').join("")+'</div>'+TG.map(([k,l])=>'<button class="C-pill'+(st[k]?" on":"")+'" data-x="C|tog|'+k+'">'+(st[k]?"✓ ":"")+l+'</button>').join("");
+const cRow=(st,i,sel,ph)=>{const x=J[i],[c,k]=FC[x.fn];return '<div class="C-row'+(sel?" sel":"")+'" data-x="C|'+(ph?"open":"sel")+'|'+i+'">'+shape(k,COL[c])+'<div><div class="C-t">'+e(x.t)+'</div><div class="C-c">'+e(x.c)+cIsb(x)+cTags(st,i,ph)+'</div><div class="C-f">'+dots(x.fit)+'<span>'+e(loc(x))+'</span>'+(x.ex&&!ph?'<span>'+x.ex+'</span>':"")+(x.sal?'<b>'+x.sal+'</b>':"")+'<span>'+x.h+'h ago</span></div></div>'+(ph?"":'<button class="C-bm'+(st.saved.has(i)?" on":"")+'" data-x="C|save|'+i+'" title="'+(st.saved.has(i)?"Remove from saved":"Save")+'">'+bm(st.saved.has(i))+'</button>')+'</div>';};
+function cDetail(st,i,ph){const j=J[i],[c,k]=FC[j.fn];return '<div class="C-dh '+c+'">'+shape(k,ALT[c])+(ph?'<button class="C-back" data-x="C|back" title="Back">←</button>':"")+'<div><span class="lbl" style="position:relative">'+e(j.fn)+'</span><h2>'+e(j.t)+'</h2><div class="co">'+e(j.c)+cIsb(j)+'</div></div></div>'+
+  '<div class="C-db"><div class="C-acts">'+(ph?"":'<button class="C-act'+(st.saved.has(i)?" on":"")+'" data-x="C|save|'+i+'">'+bm(st.saved.has(i))+(st.saved.has(i)?"Saved":"Save")+'</button>')+'<button class="C-act'+(st.applied.has(i)?" on":"")+'" data-x="C|applied|'+i+'">'+(st.applied.has(i)?"✓ Applied":"Mark applied")+'</button><button class="C-act" data-x="C|hide|'+i+'">Hide</button></div>'+
+  '<div class="C-kv">'+kv(j).map(([a,b])=>'<div><small>'+a+'</small><b>'+e(b)+'</b></div>').join("")+'</div>'+
+  '<h3>What you\'d do</h3><ul>'+li(j.d)+'</ul><h3>What they\'re looking for</h3><ul>'+li(j.l)+'</ul><h3>Key skills</h3><div class="C-sk">'+j.k.map(x=>"<span>"+e(x)+"</span>").join("")+'</div><p class="C-disc">'+DISC+'</p></div>';}
+const mark='<span class="C-mark"><svg width="16" height="16" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#D7263D"/></svg><svg width="16" height="16" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1D4ED8"/></svg><svg width="16" height="16" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" fill="#F5C400"/></svg></span>';
+function C_lap(st,list){
+  const i=st.sel,jobs=st.view==="jobs";
+  return '<header class="C-top"><span class="C-logo">'+mark+'mba jobs</span><nav class="C-nav">'+navBtns("C",st)+'</nav><label class="C-search">'+mag+'<input id="C-q" data-q="C" value="'+e(st.q)+'" placeholder="Search roles, companies, skills" autocomplete="off"><span class="kbd">/</span></label><button class="C-btn" data-x="C|resume">Match my resume</button><span class="C-av">PG</span></header>'+
+  (jobs?'<div class="C-lanes">'+cLanes(st)+'</div><div class="C-filt">'+cFilters(st)+'<div class="C-sort"><span>Sort</span>'+SORTS.map(([k,l])=>'<button class="'+(st.sort===k?"on":"")+'" data-x="C|sort|'+k+'">'+l+'</button>').join("")+'</div></div>':"")+
+  '<div class="C-stat">'+statusHTML("C",st,list)+'</div>'+
+  '<div class="C-main"><div class="C-list" data-keep="list">'+(list.length?list.map(n=>cRow(st,n,n===i,false)).join(""):'<div class="C-empty">'+emptyHTML("C",st)+'</div>')+'</div>'+
+  '<aside class="C-det">'+(i!=null?'<div class="C-dsc" data-keep="det">'+cDetail(st,i,false)+'</div><div class="C-dbar"><button class="C-go" data-x="C|apply|'+i+'">Read the full post and apply on '+J[i].src+' ↗</button></div>':'<div class="C-empty">Pick a role to see it here.</div>')+'</aside></div>'+toastHTML("C",st,false);
+}
+function C_ph(st,list){
+  const i=st.pd;
+  if(i!=null)return '<div class="C-dsc" data-keep="pd">'+cDetail(st,i,true)+'</div><div class="C-pbar"><button class="C-act'+(st.saved.has(i)?" on":"")+'" data-x="C|save|'+i+'" title="Save">'+bm(st.saved.has(i))+'</button><button class="C-go" data-x="C|apply|'+i+'">Apply on '+J[i].src+' ↗</button></div>'+toastHTML("C",st,true);
+  const jobs=st.view==="jobs";
+  return '<header class="C-top"><span class="C-logo">'+mark+'mba jobs</span><span class="C-av">PG</span></header>'+
+  '<label class="C-psearch">'+mag+'<input id="Cp-q" data-q="C" value="'+e(st.q)+'" placeholder="Search roles, companies, skills" autocomplete="off"></label>'+
+  (jobs?'<div class="C-lanes">'+cLanes(st)+'</div><div class="C-chips">'+cFilters(st)+'</div>':'<div style="height:12px;flex:none"></div>')+
+  '<div class="C-pstat"><span>'+list.length+' '+(jobs?"match":st.view)+(active(st).length&&jobs?' · <button data-x="C|clear">clear</button>':"")+'</span>'+(jobs?'<button data-x="C|csort">Sort: '+SORTS.find(s=>s[0]===st.sort)[1]+' ▾</button>':"")+'</div>'+
+  '<div class="C-pl" data-keep="pl">'+(list.length?list.map(n=>cRow(st,n,false,true)).join(""):'<div class="C-empty">'+emptyHTML("C",st)+'</div>')+'</div>'+
+  '<nav class="C-pn">'+[["jobs","Jobs"],["saved","Saved"],["applied","Applied"]].map(([v,l])=>'<button class="'+(st.view===v?"on":"")+'" data-x="C|view|'+v+'">'+l+'</button>').join("")+'</nav>'+toastHTML("C",st,true);
+}
+
+/* ---------- drawing and actions ---------- */
+const R={A:[A_lap,A_ph],C:[C_lap,C_ph]};
+function draw(D){
+  const st=ST[D],list=rows(st);
+  if(st.sel==null||!list.includes(st.sel))st.sel=list.length?list[0]:null;
+  if(st.pd!=null&&st.hidden.has(st.pd))st.pd=null;
+  [[D,R[D][0]],[D+"p",R[D][1]]].forEach(([id,fn])=>{
+    const root=document.getElementById(id),keep={};
+    root.querySelectorAll("[data-keep]").forEach(x=>keep[x.dataset.keep]=x.scrollTop);
+    root.innerHTML=fn(st,list);
+    root.querySelectorAll("[data-keep]").forEach(x=>{const k=x.dataset.keep;
+      if((k==="det"&&st.sel!==st._ls)||(k==="pd"&&st.pd!==st._lp)||(k==="pl"&&st._lp==null&&st._lpWas!=null))return;
+      x.scrollTop=keep[k]||0;});
+  });
+  st._ls=st.sel;st._lp=st.pd;
+}
+function toast(D,st,ph,msg,undo){
+  st.toast={msg,ph};st.undo=undo||null;clearTimeout(st.tt);
+  st.tt=setTimeout(()=>{st.toast=null;st.undo=null;draw(D);},4200);
+}
+function act(D,a,v,ph){
+  const st=ST[D],i=+v;
+  switch(a){
+    case"sel":st.sel=i;break;
+    case"open":st.pd=i;st.sel=i;break;
+    case"back":st.pd=null;break;
+    case"view":st.view=v;st.pd=null;st.sel=null;break;
+    case"tog":st[v]=!st[v];break;
+    case"fit":st.fit=+v;break;
+    case"sort":st.sort=v;break;
+    case"csort":st.sort={fit:"new",new:"sal",sal:"fit"}[st.sort];break;
+    case"fn":st.fn=(!v||st.fn===v)?null:v;break;
+    case"rm":if(v==="fit")st.fit=3;else if(v==="fn")st.fn=null;else if(v==="q")st.q="";else st[v]=false;break;
+    case"clear":Object.assign(st,{q:"",fit:3,isb:false,sal:false,fresh:false,remote:false,fn:null});break;
+    case"save":{const had=st.saved.has(i);had?st.saved.delete(i):st.saved.add(i);toast(D,st,ph,had?"Removed from Saved.":"Saved. It's in your Saved tab.",{k:"saved",i});break;}
+    case"applied":{const had=st.applied.has(i);had?st.applied.delete(i):st.applied.add(i);toast(D,st,ph,had?"Unmarked.":"Marked as applied. It's in your Applied tab.",{k:"applied",i});break;}
+    case"hide":st.hidden.add(i);if(st.pd===i)st.pd=null;toast(D,st,ph,"Hidden. You won't see this role again.",{k:"hidden",i});break;
+    case"undo":{const u=st.undo;if(u){const s=st[u.k];s.has(u.i)?s.delete(u.i):s.add(u.i);if(u.k==="hidden")st.sel=u.i;}st.toast=null;st.undo=null;clearTimeout(st.tt);break;}
+    case"apply":toast(D,st,ph,"On the real site this opens the original post on "+J[i].src+" in a new tab.");break;
+    case"resume":toast(D,st,ph,"Resume matching comes later: upload your CV and see your own fit for every role.");break;
+  }
+  draw(D);
+}
+document.addEventListener("click",ev=>{
+  const el=ev.target.closest("[data-x]");if(!el)return;
+  const [D,a,v]=el.dataset.x.split("|");act(D,a,v,!!el.closest(".ph"));
+});
+document.addEventListener("input",ev=>{
+  const D=ev.target.dataset.q;if(!D)return;
+  const id=ev.target.id,pos=ev.target.selectionStart;ST[D].q=ev.target.value;draw(D);
+  const n=document.getElementById(id);if(n){n.focus({preventScroll:true});n.setSelectionRange(pos,pos);}
+});
+let hot=null;
+document.querySelectorAll(".lap").forEach(l=>{l.addEventListener("mouseenter",()=>hot=l.querySelector(".scr").id);l.addEventListener("mouseleave",()=>hot=null);});
+document.addEventListener("keydown",ev=>{
+  if(!hot)return;const t=ev.target;
+  if(t.tagName==="INPUT"){if(ev.key==="Escape")t.blur();return;}
+  const st=ST[hot],list=rows(st);let i=list.indexOf(st.sel);const k=ev.key.toLowerCase();
+  if(k==="/"){ev.preventDefault();document.getElementById(hot+"-q").focus({preventScroll:true});return;}
+  if(st.sel!=null&&({s:"save",a:"applied",h:"hide",enter:"apply"})[k]){ev.preventDefault();act(hot,({s:"save",a:"applied",h:"hide",enter:"apply"})[k],String(st.sel),false);return;}
+  if(k==="j"||k==="arrowdown")i=Math.min(list.length-1,i+1);else if(k==="k"||k==="arrowup")i=Math.max(0,i-1);else return;
+  ev.preventDefault();if(i<0)return;st.sel=list[i];draw(hot);
+  const r=document.querySelector("#"+hot+" .sel"),c=r&&r.closest("[data-keep]");
+  if(c){if(r.offsetTop<c.scrollTop+40)c.scrollTop=r.offsetTop-40;else if(r.offsetTop+r.offsetHeight>c.scrollTop+c.clientHeight)c.scrollTop=r.offsetTop+r.offsetHeight-c.clientHeight;}
+});
+draw("A");draw("C");
+const fitAll=()=>document.querySelectorAll(".lap,.phw").forEach(w=>{const W=+w.dataset.w,H=+w.dataset.h,k=Math.min(1,w.clientWidth/W);w.style.setProperty("--k",k);w.style.height=H*k+"px";});
+fitAll();new ResizeObserver(fitAll).observe(document.body);
+</script>
+</body>
+</html>

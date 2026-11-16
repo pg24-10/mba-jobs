@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mba-jobs design preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block" rel="stylesheet">
+<style>
+/* VOICE everyday app, friendly and quick: built on Material 3 Expressive, not a generic web page
+   IDEA a list-detail app like Gmail on a tablet: rail, list, open job beside it
+   PICTURE the working app itself; company tiles cut from Material's shape library (cookie, clover, flower)
+   COLOUR seed teal: tonal surfaces with no borders, teal primary, peach tertiary for Past ISB recruiter
+   TYPE Google Sans Flex (Roboto Flex fallback), emphasized headline, Material Symbols Rounded icons
+   LAYOUT laptop: nav rail + list pane + detail pane; phone: search bar, chip row, nav bar, FAB */
+:root{color-scheme:light dark;
+--p:light-dark(#006a64,#82d5cc);--op:light-dark(#fff,#003733);--pc:light-dark(#9ef2e8,#00504b);--opc:light-dark(#00201d,#9ef2e8);
+--sc:light-dark(#cce8e3,#324b48);--osc:light-dark(#051f1c,#cce8e3);
+--tc:light-dark(#ffdcc2,#6b3b0f);--otc:light-dark(#2e1500,#ffdcc2);
+--s:light-dark(#f4fbf9,#0e1514);--s1:light-dark(#eef5f3,#161d1c);--s2:light-dark(#e8efed,#1a2120);--s3:light-dark(#e3eae8,#252b2a);--s4:light-dark(#dde4e2,#2f3635);
+--on:light-dark(#161d1c,#dde4e2);--onv:light-dark(#3f4947,#bec9c6);--ol:light-dark(#6f7977,#899390);--olv:light-dark(#bec9c6,#3f4947);
+--inv:light-dark(#2b3231,#dde4e2);--oinv:light-dark(#ecf2f0,#2b3231);--ip:light-dark(#82d5cc,#006a64);
+--page:light-dark(#dde4e2,#050909);--sp:cubic-bezier(.34,1.4,.64,1)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--page);color:var(--on);font:16px/1.5 "Google Sans Flex","Roboto Flex",system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em;line-height:1.12;text-wrap:balance}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--p);outline-offset:2px}
+.ms{font-family:"Material Symbols Rounded";font-size:24px;line-height:1;font-weight:400;font-variation-settings:"FILL" 0;display:inline-block;width:1em;overflow:hidden;white-space:nowrap;user-select:none;flex:none}
+.ms.f{font-variation-settings:"FILL" 1}
+.wrap{max-width:1360px;margin:0 auto;padding:clamp(20px,3vw,40px) max(3vw,12px)}
+.intro{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:10px 30px;margin-bottom:18px}
+.intro h1{font-size:clamp(28px,3.6vw,40px)}
+.intro p{margin:6px 0 0;color:var(--onv);max-width:62ch}
+.note{font-size:14px;color:var(--onv)}
+.app{background:var(--s);border-radius:32px;overflow:hidden;display:grid;grid-template-columns:88px minmax(0,440px) minmax(0,1fr);height:860px;position:relative}
+.rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 0}
+.fab{width:56px;height:56px;border-radius:16px;background:var(--pc);color:var(--opc);display:grid;place-items:center;box-shadow:0 1px 3px rgb(0 0 0/.2);transition:border-radius .35s var(--sp)}
+.fab:active{border-radius:28px}
+.rail .fab{margin-bottom:22px}
+.ri{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--onv);width:80px}
+.ri b{width:56px;height:32px;border-radius:16px;display:grid;place-items:center;position:relative;transition:background .2s}
+.ri:hover b{background:var(--s3)}
+.ri[aria-current]{color:var(--on)}
+.ri[aria-current] b{background:var(--sc);color:var(--osc)}
+.ri[aria-current] .ms{font-variation-settings:"FILL" 1}
+.badge{position:absolute;top:2px;right:12px;min-width:16px;height:16px;border-radius:8px;background:var(--p);color:var(--op);font-size:11px;line-height:16px;padding:0 4px;font-weight:700}
+.listp{overflow:auto;padding:16px 12px 24px 4px;scrollbar-width:thin}
+.detp{overflow:auto;background:var(--s1);border-radius:28px;margin:12px 12px 12px 4px;scrollbar-width:thin}
+.sbar{display:flex;align-items:center;gap:12px;height:56px;border-radius:28px;background:var(--s3);padding:0 8px 0 18px;color:var(--onv)}
+.sbar input{flex:1;border:0;outline:0;background:none;font-size:16px;font-family:inherit;color:var(--on)}
+.sbar input::placeholder{color:var(--onv)}
+.av{width:40px;height:40px;border-radius:50%;background:var(--tc);color:var(--otc);display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}
+.hello{padding:22px 8px 6px}
+.hello small{color:var(--onv);font-size:14px}
+.hello h2{font-size:30px;font-weight:750;margin-top:2px}
+.hello h2 em{font-style:normal;color:var(--p)}
+.upd{font-size:13px;color:var(--onv);margin-top:6px;display:flex;align-items:center;gap:4px}
+.upd .ms{font-size:16px}
+.chips{display:flex;gap:8px;padding:14px 8px;overflow-x:auto;scrollbar-width:none}
+.chip{height:32px;border-radius:8px;border:1px solid var(--olv);padding:0 10px 0 12px;display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:500;white-space:nowrap;color:var(--onv);flex:none}
+.chip .ms{font-size:18px}
+.chip:hover{background:var(--s2)}
+.chip.on{background:var(--sc);color:var(--osc);border-color:transparent;padding-left:8px}
+.bg{display:flex;gap:2px;padding:0 8px 12px}
+.bg button{height:36px;padding:0 14px;background:var(--s3);font-size:14px;font-weight:600;border-radius:8px;transition:border-radius .35s var(--sp),background .2s}
+.bg button:first-child{border-radius:18px 8px 8px 18px}.bg button:nth-child(3){border-radius:8px 18px 18px 8px}
+.bg button[aria-pressed=true]{background:var(--p);color:var(--op);border-radius:18px}
+.cnt{margin-left:auto;align-self:center;font-size:13px;color:var(--onv);white-space:nowrap}
+.card{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:2px 14px;padding:16px;border-radius:24px;background:var(--s1);margin:0 0 6px;cursor:pointer;transition:border-radius .4s var(--sp),background .2s}
+.card:hover{background:var(--s2)}
+.card.sel{background:var(--sc);border-radius:12px}
+.card.sel .co,.card.sel .facts{color:var(--osc)}
+.logo{width:48px;height:48px;display:grid;place-items:center;position:relative;grid-row:span 3;font-weight:750;font-size:15px;color:hsl(var(--h) 60% 22%);flex:none}
+.logo svg{position:absolute;inset:0;width:100%;height:100%;fill:hsl(var(--h) 70% 84%)}
+.logo span{position:relative}
+:root[data-theme=dark] .logo{color:hsl(var(--h) 70% 88%)}:root[data-theme=dark] .logo svg{fill:hsl(var(--h) 35% 30%)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .logo{color:hsl(var(--h) 70% 88%)}:root:not([data-theme=light]) .logo svg{fill:hsl(var(--h) 35% 30%)}}
+.ct{font-weight:650;font-size:16px;line-height:1.3}
+.co{font-size:14px;color:var(--onv);display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.isb{background:var(--tc);color:var(--otc);border-radius:6px;padding:1px 8px;font-size:12px;font-weight:650;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.isb .ms{font-size:14px}
+.facts{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--onv);margin-top:4px}
+.facts span{white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.facts .ms{font-size:16px}
+.facts b{color:var(--on);font-weight:600}
+.right{grid-row:1/4;grid-column:3;display:flex;flex-direction:column;align-items:end;justify-content:space-between}
+.fit{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:var(--onv);white-space:nowrap}
+.fit i{display:flex;gap:2px}.fit i b{width:6px;height:14px;border-radius:3px;background:var(--olv)}.fit i b.on{background:var(--p)}
+.ib{width:40px;height:40px;border-radius:20px;display:grid;place-items:center;color:var(--onv);transition:border-radius .35s var(--sp),background .2s;flex:none}
+.ib:hover{background:var(--s3)}
+.ib:active{border-radius:12px}
+.ib.on{color:var(--p)}.ib.on .ms{font-variation-settings:"FILL" 1}
+.empty{padding:40px 16px;text-align:center;color:var(--onv)}
+.menu{position:absolute;z-index:5;top:120px;left:96px;width:290px;background:var(--s2);border-radius:16px;padding:8px 0;box-shadow:0 4px 16px rgb(0 0 0/.18)}
+.menu label{display:flex;align-items:center;gap:12px;padding:0 16px;height:44px;font-size:15px;cursor:pointer}
+.menu label:hover{background:var(--s4)}
+.menu input{accent-color:var(--p);width:18px;height:18px;margin:0}
+.menu label span:last-child{margin-left:auto;color:var(--onv);font-size:13px}
+.dh{background:var(--pc);color:var(--opc);border-radius:28px 28px 48px 28px;padding:20px 24px 26px;margin:12px}
+.dtop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dh .logo{width:64px;height:64px;font-size:20px}
+.dh h2{font-size:clamp(24px,2.4vw,32px);font-weight:750;margin:16px 0 8px}
+.dh .co{color:var(--opc);font-size:15px}
+.dact{display:flex;gap:4px;margin-left:auto}
+.dh .ib{color:var(--opc)}
+.dbody{padding:4px 28px 32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0 6px}
+.grid div{background:var(--s3);border-radius:16px;padding:10px 14px}
+.grid small{display:flex;align-items:center;gap:4px;color:var(--onv);font-size:13px}
+.grid small .ms{font-size:16px}
+.grid b{font-weight:650;font-size:15px}
+.dbody h3{font-size:18px;margin:24px 0 8px;display:flex;align-items:center;gap:8px}
+.dbody h3 .ms{color:var(--p);font-size:22px}
+.dbody ul{margin:0;padding-left:22px}.dbody li{margin:5px 0}.dbody li::marker{color:var(--p)}
+.sk{display:flex;flex-wrap:wrap;gap:8px}
+.sk span{height:32px;border-radius:8px;background:var(--s3);padding:0 12px;display:inline-flex;align-items:center;font-size:14px;font-weight:500}
+.go{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px;align-items:center}
+.big{min-height:56px;padding:8px 26px;border-radius:28px;background:var(--p);color:var(--op);font-size:16px;font-weight:650;display:inline-flex;align-items:center;gap:8px;transition:border-radius .35s var(--sp);text-align:left}
+.big:active{border-radius:16px}
+.ton{height:56px;padding:0 22px;border-radius:28px;background:var(--sc);color:var(--osc);font-weight:600;display:inline-flex;align-items:center;gap:8px;transition:border-radius .35s var(--sp)}
+.ton:active{border-radius:16px}
+.disc{font-size:13px;color:var(--onv);margin-top:12px}
+.back{display:none}
+.snack{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);background:var(--inv);color:var(--oinv);border-radius:8px;padding:0 8px 0 16px;height:48px;display:flex;align-items:center;gap:20px;font-size:14px;box-shadow:0 4px 12px rgb(0 0 0/.25);z-index:6;white-space:nowrap}
+.snack button{color:var(--ip);font-weight:650;height:40px;padding:0 10px}
+.sec{margin-top:44px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:28px;align-items:start}
+.sec h2{font-size:clamp(24px,3vw,30px);margin-bottom:10px}
+.sec ul{padding-left:20px;margin:0;color:var(--onv)}.sec li{margin:7px 0}
+.ph{width:320px;height:680px;border:10px solid light-dark(#1b1f1e,#2e3332);border-radius:44px;background:var(--s);overflow:hidden;position:relative;font-size:14px;display:flex;flex-direction:column}
+.stb{display:flex;justify-content:space-between;padding:8px 22px 6px;font-size:12px;font-weight:650}
+.phs{flex:1;overflow:hidden;padding:4px 10px 0}
+.ph .sbar{height:48px}
+.ph .chips{padding:10px 0}
+.ph .card{grid-template-columns:40px minmax(0,1fr);padding:14px;border-radius:20px}
+.ph .card .logo{width:40px;height:40px;font-size:13px}
+.ph .card .right{grid-row:4;grid-column:1/3;flex-direction:row;align-items:center;margin-top:6px}
+.nb{display:flex;justify-content:space-around;background:var(--s2);padding:12px 0 16px}
+.nb .ri{width:auto}
+.ph .fab{position:absolute;right:16px;bottom:100px}
+.ph .dh{margin:4px 8px;padding:12px 16px 20px;border-radius:24px 24px 40px 24px}
+.ph .dh .logo{width:48px;height:48px;font-size:15px}
+.ph .dh h2{font-size:22px;margin:12px 0 6px}
+.ph .dbody{padding:0 14px}
+.ph .dbody h3{font-size:16px;margin:16px 0 6px}
+.dock{padding:12px 14px 18px;background:var(--s2);display:flex;gap:8px}
+.dock .big{flex:1;justify-content:center;min-height:52px;font-size:15px}
+.why{margin-top:44px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.why div{background:var(--s);border-radius:24px;padding:20px 22px}
+.why div:nth-child(2){border-radius:24px 8px 24px 24px}
+.why h3{font-size:17px;margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.why h3 .ms{color:var(--p)}
+.why p{margin:0;color:var(--onv);font-size:15px}
+@media(max-width:1100px){.app{grid-template-columns:88px minmax(0,1fr);height:auto;min-height:700px}.listp{overflow:visible}.detp{display:none;margin:12px}
+.app.open .listp{display:none}.app.open .detp{display:block}.back{display:grid}
+.sec{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));justify-items:center}.sec>div:first-child{justify-self:stretch;grid-column:1/-1}}
+@media(max-width:600px){.app{grid-template-columns:minmax(0,1fr);border-radius:24px}.rail{display:none}.listp{padding:12px 8px}.card{grid-template-columns:40px minmax(0,1fr)}.card .logo{width:40px;height:40px}.right{grid-row:4;grid-column:1/3;flex-direction:row;align-items:center;margin-top:6px}.menu{left:12px!important;right:12px;width:auto}.dbody{padding:4px 16px 24px}.hello h2{font-size:26px}.ph{width:300px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <div>
+      <h1>mba-jobs, redesigned on Material 3</h1>
+      <p>Click around: pick a job to open it on the right, use the Function and City chips, change the sort, save a job or hide it (you can undo).</p>
+    </div>
+    <div class="note">Jobs shown are real ones from your database, posted 15 Nov.</div>
+  </div>
+
+  <div class="app" id="app">
+    <nav class="rail" aria-label="Main">
+      <button class="fab" title="Match my resume" aria-label="Match my resume"><span class="ms">upload_file</span></button>
+      <button class="ri" data-v="jobs" aria-current="page"><b><span class="ms">work</span></b>Jobs</button>
+      <button class="ri" data-v="saved"><b><span class="ms">bookmark</span><span class="badge" id="savedN">1</span></b>Saved</button>
+      <button class="ri"><b><span class="ms">task_alt</span></b>Applied</button>
+      <button class="ri"><b><span class="ms">notifications</span></b>Alerts</button>
+    </nav>
+    <section class="listp">
+      <label class="sbar" for="q"><span class="ms">search</span><input id="q" placeholder="Search title, company or skill"><span class="av" title="Signed in">PG</span></label>
+      <div class="hello">
+        <small>Good afternoon</small>
+        <h2 id="head"><em>214 new jobs</em> since your last visit</h2>
+        <div class="upd"><span class="ms">sync</span>Last updated today, 1:42 PM · 12,270 jobs at fit 3+</div>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="bg" id="sort"><button aria-pressed="true" data-s="fit">Best fit</button><button aria-pressed="false" data-s="new">Newest</button><button aria-pressed="false" data-s="sal">Salary</button><span class="cnt" id="cnt"></span></div>
+      <div id="list"></div>
+    </section>
+    <section class="detp" id="det" aria-live="polite"></section>
+    <div id="menu"></div><div id="snack"></div>
+  </div>
+
+  <div class="sec">
+    <div>
+      <h2>On a phone</h2>
+      <ul>
+        <li>A search bar at the top, then a row of quick-filter chips you can swipe.</li>
+        <li>A navigation bar at the bottom: Jobs, Saved, Applied, Alerts. The floating button matches your resume.</li>
+        <li>An open job fills the screen, and the apply button stays pinned at the bottom.</li>
+        <li>Dark mode follows the phone.</li>
+      </ul>
+    </div>
+    <div class="ph" aria-label="Phone: job list">
+      <div class="stb"><span>9:41</span><span>5G</span></div>
+      <div class="phs">
+        <div class="sbar"><span class="ms">search</span><span style="flex:1">Search jobs</span><span class="av" style="width:32px;height:32px;font-size:12px">PG</span></div>
+        <div class="chips"><span class="chip on"><span class="ms">check</span>Fit 3+</span><span class="chip">Function<span class="ms">arrow_drop_down</span></span><span class="chip">City<span class="ms">arrow_drop_down</span></span><span class="chip">Past ISB recruiter</span></div>
+        <div id="ph1"></div>
+      </div>
+      <span class="fab" aria-hidden="true"><span class="ms">upload_file</span></span>
+      <div class="nb"><span class="ri" aria-current="page"><b><span class="ms">work</span></b>Jobs</span><span class="ri"><b><span class="ms">bookmark</span></b>Saved</span><span class="ri"><b><span class="ms">task_alt</span></b>Applied</span><span class="ri"><b><span class="ms">notifications</span></b>Alerts</span></div>
+    </div>
+    <div class="ph" aria-label="Phone: open job">
+      <div class="stb"><span>9:41</span><span>5G</span></div>
+      <div class="phs" id="ph2" style="padding:0"></div>
+      <div class="dock"><span class="ib" style="background:var(--sc);color:var(--osc);width:52px;height:52px;border-radius:26px"><span class="ms">bookmark</span></span><span class="big">Apply on Naukri<span class="ms">open_in_new</span></span></div>
+    </div>
+  </div>
+
+  <div class="why">
+    <div><h3><span class="ms">palette</span>Colour from one seed</h3><p>Every colour comes from one teal, as Material does it. Areas are separated by tone, not outlines. Peach marks Past ISB recruiter, and dark mode uses the same tones.</p></div>
+    <div><h3><span class="ms">interests</span>Shapes with meaning</h3><p>Company tiles are cut from Material's shape library, so the list doesn't read like a spreadsheet. The open job's card turns squarer, and buttons squash slightly when pressed.</p></div>
+    <div><h3><span class="ms">view_sidebar</span>List and detail together</h3><p>On a laptop you read a job without losing your place in the list, like Gmail on a tablet. On a phone it opens full screen.</p></div>
+    <div><h3><span class="ms">text_fields</span>Type that leads</h3><p>Google Sans Flex, with a big bold headline for what changed today. Icons are Material Symbols.</p></div>
+  </div>
+</div>
+
+<script>
+{
+const J=[
+{t:"Senior Product Management Analyst - Hardware & Solution Strategy",c:"Avaya India",city:"Remote (India)",mode:"Remote",ex:"7–12 yrs",sal:"₹30–45 LPA",sv:45,h:20,src:"Naukri",isb:true,fn:"Product",sen:"Manager",mba:"Not mentioned",fit:5,d:["Analyse attach rates and supply trends for growth ideas","Build business cases and pricing for solutions","Create sales playbooks and pricing tools"],l:["5+ years in product or BI within enterprise software or telecom","Strong analytical and executive communication skills"],k:["Sales forecasting","Business analytics","Product analysis","Pricing","Business intelligence","Sales enablement"]},
+{t:"Solution Advisor Senior Specialist (AI Expertise)",c:"SAP",city:"Mumbai",ex:"",sal:"",sv:0,h:9,src:"LinkedIn",isb:true,fn:"Consulting",sen:"Associate",mba:"Not mentioned",fit:5,app:25,d:["Engage customers through the sales cycle with demos","Position SAP AI capabilities against business problems","Build rapid prototypes and demo content"],l:["Strong AI and business value selling skills","Comfort using AI tools in customer work"],k:["Solution advisory","AI","Value selling","Demos","Prototyping","SAP","Customer discovery"]},
+{t:"General Manager",c:"Woways",city:"Hyderabad",ex:"4–7 yrs",sal:"₹6–12 LPA",sv:12,h:14,src:"Naukri",isb:false,fn:"General management",sen:"Manager",mba:"Preferred",fit:5,d:["Own P&L, budgets, forecasts and cost control","Launch new business verticals and scale operations","Lead cross-functional teams and set KPIs and SOPs"],l:["Seven or more years in general management, operations or sales leadership","EdTech, SaaS or startup experience preferred"],k:["P&L management","Business strategy","Budget planning","Business building","Sales strategy","Team leadership","SOPs","MIS reporting"]},
+{t:"Manager – Talent Assessment & Performance Management – Human Capital",c:"D. E. Shaw India",city:"Hyderabad",ex:"4–5 yrs",sal:"",sv:0,h:22,src:"LinkedIn",isb:true,fn:"HR",sen:"Manager",mba:"Required",fit:4,app:200,d:["Run job analyses to define traits to measure","Configure assessments with the tech team and vendors","Design a new talent assessment framework"],l:["MBA from a top-tier college plus 4-5 years in HR","Strong project and stakeholder management"],k:["Talent assessment","Competency mapping","Performance management","Recruitment","Stakeholder management","Market intelligence"]},
+{t:"Payment Transformation - Director",c:"EY",city:"Delhi NCR",ex:"12–20 yrs",sal:"",sv:0,h:11,src:"Naukri",isb:true,fn:"Consulting",sen:"Director",mba:"Not mentioned",fit:4,d:["Lead end-to-end payments transformation programmes","Shape product strategy across cards and payment propositions","Engage senior stakeholders and run client workshops"],l:["Deep cards and payments domain knowledge","Experience leading large transformation work for financial firms"],k:["Payments","Card lifecycle","Product strategy","Transformation","Operating model","Stakeholder management"]},
+{t:"Financial Analysis Specialist",c:"Technogeeks",city:"Pune",mode:"Hybrid",ex:"4–9 yrs",sal:"₹6–16 LPA",sv:16,h:18,src:"Naukri",isb:false,fn:"Finance",sen:"Manager",mba:"Not mentioned",fit:4,d:["Build Excel financial models and forecasts","Improve finance operations and reporting processes","Prepare KPI analysis for senior management"],l:["Four or more years in finance modelling or analysis","Strong Excel skills"],k:["Financial modelling","Excel","Budgeting","Forecasting","Financial analysis","Reporting"]},
+{t:"Builder - Program Manager",c:"Cars24",city:"Delhi NCR",ex:"",sal:"",sv:0,h:16,src:"LinkedIn",isb:true,fn:"Program management",sen:"Manager",mba:"Not mentioned",fit:4,app:52,d:["Run dialer campaigns, queues and routing setup","Coordinate integrations with CRM and vendors","Monitor call health and resolve incidents"],l:["Hands-on contact centre and dialer experience","Ability to bridge business and technology teams"],k:["Dialer","Contact centre","CRM","Programme management","Vendor management","Lead management","UAT","Telephony"]},
+{t:"Associate Product Owner",c:"Sevaro",city:"Remote (India)",mode:"Remote",ex:"7–10 yrs",sal:"₹15–30 LPA",sv:30,h:12,src:"Naukri",isb:false,fn:"Product",sen:"Associate",mba:"Not mentioned",fit:5,d:["Own and prioritise the product backlog","Write user stories and acceptance criteria","Run sprint ceremonies and release readiness"],l:["Two or more years in product ownership or business analysis","Hands-on Jira and Agile experience"],k:["Product ownership","Backlog management","Jira","Agile","User stories"]},
+{t:"Sales Manager",c:"Lohia Jain Group",city:"Pune",ex:"",sal:"",sv:0,h:7,src:"LinkedIn",isb:true,fn:"Sales / BD",sen:"Manager",mba:"Preferred",fit:4,app:28,d:["Manage the sales pipeline, site visits and negotiations","Build relationships with customers, brokers and channel partners","Prepare sales reports and support marketing"],l:["Real estate or related sales experience","Track record of meeting sales targets"],k:["Sales","Negotiation","Pipeline management","Channel partners","CRM","Real estate"]}
+];
+const MENUS={fn:{label:"Function",opts:[["Sales / BD",2502],["Program management",1637],["Operations",1415],["Consulting",1195],["Finance",1069],["Marketing",1036],["Product",905],["HR",400],["General management",255]]},city:{label:"City",opts:[["Bangalore"],["Mumbai"],["Delhi NCR"],["Hyderabad"],["Pune"],["Remote (India)"]]}};
+const S={fn:new Set(),city:new Set(),isb:false,sal:false,q:"",sort:"fit",sel:0,view:"jobs",saved:new Set([1]),hid:new Set(),menu:null,undo:null};
+const app=document.getElementById("app"),$=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const hash=s=>[...s].reduce((a,ch)=>(a*31+ch.charCodeAt(0))>>>0,7);
+const inits=s=>s.replace(/[^A-Za-z0-9 ]/g," ").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+/* shapes in the spirit of Material's library: scalloped cookies and clovers via r = 1 + a*cos(n*t), plus a squircle */
+const SH=[[4,.16],[6,.08],[8,.06],[10,.045],[5,.1],[0,0]];
+const path=([n,a])=>{const p=[];for(let d=0;d<360;d+=3){const t=d*Math.PI/180;let x,y;
+if(!n){const c=Math.cos(t),s=Math.sin(t);x=Math.sign(c)*Math.abs(c)**.5;y=Math.sign(s)*Math.abs(s)**.5;}else{const r=(1+a*Math.cos(n*t))/(1+a);x=r*Math.cos(t);y=r*Math.sin(t);}
+p.push((24+23.5*x).toFixed(1)+" "+(24+23.5*y).toFixed(1));}return "M"+p.join("L")+"Z";};
+const PATHS=SH.map(path);
+const logo=c=>{const h=hash(c);return '<span class="logo" style="--h:'+(h%360)+'"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="'+PATHS[h%PATHS.length]+'"/></svg><span>'+inits(c)+'</span></span>';};
+const fit=n=>'<span class="fit" title="Fit '+n+' of 5"><i>'+[1,2,3,4,5].map(i=>'<b class="'+(i<=n?"on":"")+'"></b>').join("")+'</i>Fit '+n+'</span>';
+const isbB=j=>j.isb?'<span class="isb"><span class="ms f">school</span>Past ISB recruiter</span>':"";
+const facts=j=>['<span><span class="ms">location_on</span>'+esc(j.city+(j.mode?" · "+j.mode:""))+'</span>',j.ex?'<span>'+j.ex+'</span>':"",j.sal?'<span><b>'+j.sal+'</b></span>':"",'<span>'+j.h+'h ago</span>',j.app?'<span>'+j.app+(j.app>=200?"+":"")+' applied</span>':""].join("");
+const vis=()=>{const v=J.map((j,i)=>[j,i]).filter(([j,i])=>!S.hid.has(i)&&(S.view!=="saved"||S.saved.has(i))&&(!S.fn.size||S.fn.has(j.fn))&&(!S.city.size||S.city.has(j.city))&&(!S.isb||j.isb)&&(!S.sal||j.sal)&&(!S.q||(j.t+" "+j.c+" "+j.k.join(" ")).toLowerCase().includes(S.q)));
+const k={fit:([a],[b])=>b.fit-a.fit,new:([a],[b])=>a.h-b.h,sal:([a],[b])=>b.sv-a.sv}[S.sort];return v.sort(k);};
+const card=([j,i],ph)=>'<div class="card'+(!ph&&i===S.sel?" sel":"")+'" data-i="'+i+'" tabindex="0" role="button">'+logo(j.c)+'<div class="ct">'+esc(j.t)+'</div><div class="right">'+fit(j.fit)+(ph?"":'<span style="display:flex"><button class="ib'+(S.saved.has(i)?" on":"")+'" data-sv="'+i+'" aria-label="Save"><span class="ms">bookmark</span></button><button class="ib" data-hd="'+i+'" aria-label="Hide"><span class="ms">visibility_off</span></button></span>')+'</div><div class="co"><span>'+esc(j.c)+'</span>'+isbB(j)+'</div><div class="facts">'+facts(j)+'</div></div>';
+const detail=(j,i,ph)=>'<div class="dh"><div class="dtop">'+(ph?'<span class="ib"><span class="ms">arrow_back</span></span>'+logo(j.c):'<button class="ib back" data-back aria-label="Back"><span class="ms">arrow_back</span></button>'+logo(j.c)+'<div class="dact"><button class="ib'+(S.saved.has(i)?" on":"")+'" data-sv="'+i+'" aria-label="Save"><span class="ms">bookmark</span></button><button class="ib" aria-label="Share"><span class="ms">share</span></button></div>')+'</div><h2>'+esc(j.t)+'</h2><div class="co"><span>'+esc(j.c)+'</span>'+isbB(j)+'</div></div>'+
+'<div class="dbody"><div class="grid">'+[["location_on","Location",j.city+(j.mode?" · "+j.mode:"")],["work_history","Experience",j.ex||"Not stated"],["payments","Salary",j.sal||"Not shown"],["category","Function",j.fn],["stairs","Level",j.sen],["school","MBA",j.mba],["schedule","Posted",j.h+"h ago on "+j.src],["target","Fit",j.fit+" of 5"]].slice(0,ph?4:8).map(([ic,a,b])=>'<div><small><span class="ms">'+ic+'</span>'+a+'</small><b>'+esc(b)+'</b></div>').join("")+'</div>'+
+'<h3><span class="ms">checklist</span>What you\'d do</h3><ul>'+j.d.map(x=>"<li>"+esc(x)+"</li>").join("")+'</ul>'+(ph?"":'<h3><span class="ms">person_search</span>What they\'re looking for</h3><ul>'+j.l.map(x=>"<li>"+esc(x)+"</li>").join("")+'</ul><h3><span class="ms">bolt</span>Key skills</h3><div class="sk">'+j.k.map(x=>"<span>"+esc(x)+"</span>").join("")+'</div>'+
+'<div class="go"><button class="big">Read the full post and apply on '+j.src+'<span class="ms">open_in_new</span></button><button class="ton"><span class="ms">task_alt</span>Mark applied</button></div><p class="disc">Summary written by mba-jobs. The original post has the full details.</p>')+'</div>';
+const chips=()=>{const ch=(on,label,attr,drop)=>'<button class="chip'+(on?" on":"")+'" '+attr+'>'+(on?'<span class="ms">check</span>':"")+esc(label)+(drop?'<span class="ms">arrow_drop_down</span>':"")+'</button>';
+const ml=k=>{const s=S[k];return s.size?(s.size===1?[...s][0]:MENUS[k].label+" · "+s.size):MENUS[k].label;};
+return ch(true,"Fit 3+","data-c=fit")+ch(S.fn.size,ml("fn"),"data-m=fn",1)+ch(S.city.size,ml("city"),"data-m=city",1)+ch(S.isb,"Past ISB recruiter","data-c=isb")+ch(S.sal,"Salary shown","data-c=sal")+ch(false,"More filters","data-c=more");};
+const draw=()=>{const v=vis();if(v.length&&!v.some(([,i])=>i===S.sel))S.sel=v[0][1];
+$("chips").innerHTML=chips();$("cnt").textContent=v.length+" of 9 samples";
+$("head").innerHTML=S.view==="saved"?"Your <em>saved jobs</em>":"<em>214 new jobs</em> since your last visit";
+$("list").innerHTML=v.length?v.map(x=>card(x)).join(""):'<div class="empty"><span class="ms" style="font-size:40px">search_off</span><br>No jobs match. Try removing a filter.</div>';
+$("det").innerHTML=v.length?detail(J[S.sel],S.sel):"";$("savedN").textContent=S.saved.size;
+document.querySelectorAll("#sort button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===S.sort));
+document.querySelectorAll(".rail .ri[data-v]").forEach(b=>b.toggleAttribute("aria-current",b.dataset.v===S.view));
+$("menu").innerHTML=S.menu?'<div class="menu" role="menu">'+MENUS[S.menu].opts.map(([n,c])=>'<label><input type="checkbox" data-g="'+S.menu+'" value="'+esc(n)+'"'+(S[S.menu].has(n)?" checked":"")+'><span>'+esc(n)+'</span><span>'+(c?c.toLocaleString("en-IN"):"")+'</span></label>').join("")+'</div>':"";
+if(S.menu){const chip=app.querySelector('[data-m="'+S.menu+'"]'),m=app.querySelector(".menu"),r=chip.getBoundingClientRect(),a=app.getBoundingClientRect();m.style.left=Math.min(r.left-a.left,a.width-302)+"px";m.style.top=(r.bottom-a.top+6)+"px";}
+$("snack").innerHTML=S.undo!==null?'<div class="snack">Job hidden<button data-undo>Undo</button></div>':"";};
+let st;
+app.addEventListener("click",e=>{const t=e.target.closest("button,.card,label");
+if(S.menu&&!e.target.closest(".menu,[data-m]")){S.menu=null;draw();if(!t)return;}
+if(!t||t.tagName==="LABEL")return;const d=t.dataset;
+if(d.m){S.menu=S.menu===d.m?null:d.m;draw();return;}
+if(d.c==="isb"){S.isb=!S.isb;draw();return;}
+if(d.c==="sal"){S.sal=!S.sal;draw();return;}
+if(d.s){S.sort=d.s;draw();return;}
+if(d.v){S.view=d.v;app.classList.remove("open");draw();return;}
+if(d.sv){const i=+d.sv;S.saved.has(i)?S.saved.delete(i):S.saved.add(i);draw();return;}
+if(d.hd){const i=+d.hd;S.hid.add(i);S.undo=i;clearTimeout(st);st=setTimeout(()=>{S.undo=null;draw();},5000);draw();return;}
+if(d.undo!==undefined){S.hid.delete(S.undo);S.undo=null;draw();return;}
+if(d.back!==undefined){app.classList.remove("open");return;}
+if(t.classList.contains("card")){S.sel=+d.i;app.classList.add("open");draw();if(innerWidth<=1100)app.scrollIntoView({block:"start"});}});
+app.addEventListener("change",e=>{const g=e.target.dataset.g;if(!g)return;e.target.checked?S[g].add(e.target.value):S[g].delete(e.target.value);draw();});
+app.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList.contains("card")){S.sel=+e.target.dataset.i;app.classList.add("open");draw();}if(e.key==="Escape"&&S.menu){S.menu=null;draw();}});
+$("q").addEventListener("input",e=>{S.q=e.target.value.trim().toLowerCase();draw();});
+$("ph1").innerHTML=[0,3,1].map(i=>card([J[i],i],1)).join("");
+$("ph2").innerHTML=detail(J[7],7,1);
+draw();
+}
+</script>
+</body>
+</html>
