@@ -33,12 +33,15 @@ class DB:
     OFFLINE_WAIT = 30 * 60              # and up to 30 minutes when the internet itself is down
 
     def _send(self, method, url, **kw):
-        """One request, retried on network errors and 5xx."""
+        """One request, retried on network errors, 5xx, and HTML error pages: Supabase
+        itself always answers in JSON, so an HTML page is Cloudflare in front of it
+        having a moment (e.g. 'DNS resolution error' sent as 409, 16 Nov)."""
         waits = list(self.WAITS) + [None]
         while True:
             try:
                 r = self.s.request(method, url, **kw)
-                if r.status_code < 500 or waits[0] is None:
+                passing = r.status_code >= 500 or "text/html" in r.headers.get("content-type", "")
+                if not passing or waits[0] is None:
                     return self._check(r)
             except requests.RequestException:
                 if not online() and wait_until_online(self.OFFLINE_WAIT):

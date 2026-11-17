@@ -338,8 +338,13 @@ def _old_parts():
     return sorted(DIR.glob("part*.json"))
 
 
+PIECE = 50   # most jobs one helper tags in one go; 100 at once overran the helper's memory
+
+
 def export_parts(db, parts, size=50):
-    """Write the next parts*size jobs as part1.json .. partN.json. Returns the jobs per part.
+    """Write the next parts*size jobs, one part per helper. A part bigger than PIECE jobs is
+    split into pieces part1a.json, part1b.json, ... that the helper tags one after another,
+    so a helper never holds more than PIECE posts at once. Returns the jobs per part.
     Refuses while earlier parts are still waiting to be imported."""
     if _old_parts():
         raise RuntimeError("earlier part files are still there; run tag-import --parts first")
@@ -348,9 +353,13 @@ def export_parts(db, parts, size=50):
     counts = []
     for i in range(parts):
         chunk = jobs[i * size:(i + 1) * size]
-        if chunk:
-            _part(i + 1).write_text(json.dumps(chunk, indent=1, ensure_ascii=False))
-            counts.append(len(chunk))
+        if not chunk:
+            continue
+        pieces = [chunk[k:k + PIECE] for k in range(0, len(chunk), PIECE)]
+        for k, piece in enumerate(pieces):
+            name = f"part{i + 1}{'abcdefghij'[k]}.json" if len(pieces) > 1 else _part(i + 1).name
+            (DIR / name).write_text(json.dumps(piece, indent=1, ensure_ascii=False))
+        counts.append(len(chunk))
     (DIR / "all.json").unlink()
     return counts
 
@@ -505,10 +514,17 @@ def import_tags(db, path=TAGGED, batch=BATCH, log=print):
     dupes = json.loads(DUPES.read_text()) if DUPES.exists() else {}
     copies = []
     now = datetime.now(timezone.utc).isoformat()
-    for tag in json.loads(path.read_text()):
+    tag_list = json.loads(path.read_text())
+    seen = {}
+    for tag in tag_list:
+        seen[tag.get("id")] = seen.get(tag.get("id"), 0) + 1
+    for tag in tag_list:
         job = jobs.get(tag.get("id"))
         if job is None:
             problems.append(f"{tag.get('id')}: not in this batch")
+            continue
+        if seen[tag["id"]] > 1:                   # tagged twice: can't tell which one is right
+            problems.append(f"{job['id']} {job['title'][:40]}: tagged more than once")
             continue
         row = check(tag, {**job, **have.get(job["id"], {})}, tags)
         if isinstance(row, str):

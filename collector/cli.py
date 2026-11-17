@@ -197,7 +197,8 @@ def cmd_tag_export(args):
     from .db import DB
     if args.parts:
         counts = tagging.export_parts(DB(), args.parts, args.limit)
-        print(f"{sum(counts)} jobs to tag in {len(counts)} parts -> {tagging.DIR}/part1..{len(counts)}.json")
+        print(f"{sum(counts)} jobs to tag in {len(counts)} parts -> {tagging.DIR}/part*.json "
+              f"(a part over {tagging.PIECE} jobs is split into pieces part1a, part1b, ...)")
         return
     n = tagging.export(DB(), args.limit)
     print(f"{n} jobs to tag -> {tagging.BATCH}")

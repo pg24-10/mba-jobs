@@ -261,3 +261,26 @@ def test_code_reads_mba_when_claude_leaves_it_out():
     tag = {k: v for k, v in GOOD.items() if k != "mba_requirement"}
     row = check(tag, {**JOB, "description": POST + " MBA preferred."}, config("tags"))
     assert row["mba_requirement"] == "preferred"
+
+
+def test_import_refuses_a_job_tagged_twice_or_without_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(tagging, "FAILED", tmp_path / "failed.json")
+    monkeypatch.setattr(tagging, "DUPES", tmp_path / "dupes.json")
+    batch, tagged = tmp_path / "batch.json", tmp_path / "tagged.json"
+    batch.write_text(json.dumps([JOB, {**JOB, "id": 2, "title": "Other"}]))
+    no_id = {k: v for k, v in GOOD.items() if k != "id"}
+    tagged.write_text(json.dumps([GOOD, {**GOOD, "id": 2}, {**GOOD, "id": 2}, no_id]))
+    db = FakeDB()
+    saved, problems = tagging.import_tags(db, tagged, batch)
+    assert saved == 1 and [m for m, _ in db.updates] == [{"id": 1}]
+    assert sum("more than once" in p for p in problems) == 2 and any("None" in p for p in problems)
+
+
+def test_big_parts_are_split_into_pieces(tmp_path, monkeypatch):
+    monkeypatch.setattr(tagging, "DIR", tmp_path)
+    jobs = [{"id": i} for i in range(1, 131)]
+    monkeypatch.setattr(tagging, "export", lambda db, n, path, log=print: path.write_text(json.dumps(jobs[:n])))
+    assert tagging.export_parts(None, 2, 65) == [65, 65]
+    names = sorted(p.name for p in tmp_path.iterdir())
+    assert names == ["part1a.json", "part1b.json", "part2a.json", "part2b.json"]
+    assert len(json.loads((tmp_path / "part1a.json").read_text())) == 50

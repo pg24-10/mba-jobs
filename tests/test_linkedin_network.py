@@ -84,7 +84,7 @@ def test_database_waits_out_a_drop(monkeypatch):
             calls.append(1)
             if not up["now"]:
                 raise requests.ConnectionError("Failed to resolve")
-            return type("R", (), {"status_code": 200, "text": "", "json": lambda self: None})()
+            return type("R", (), {"status_code": 200, "text": "", "headers": {}, "json": lambda self: None})()
     def back(limit, log=None):
         up["now"] = True
         return True
@@ -94,3 +94,18 @@ def test_database_waits_out_a_drop(monkeypatch):
     d = db_mod.DB.__new__(db_mod.DB)
     d.s = S()
     assert d._send("GET", "u") is None and len(calls) == 2
+
+
+def test_database_retries_a_cloudflare_error_page(monkeypatch):
+    from collector import db as db_mod
+    pages = [(409, "text/html; charset=UTF-8"), (200, "application/json")]
+    class S:
+        def request(self, method, url, **kw):
+            code, kind = pages.pop(0)
+            return type("R", (), {"status_code": code, "text": "", "headers": {"content-type": kind},
+                                  "json": lambda self: None})()
+    waited = []
+    monkeypatch.setattr(db_mod.time, "sleep", waited.append)
+    d = db_mod.DB.__new__(db_mod.DB)
+    d.s = S()
+    assert d._send("GET", "u") is None and waited == [db_mod.DB.WAITS[0]] and not pages
