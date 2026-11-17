@@ -161,7 +161,8 @@ _MBA = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bpost[- ]?graduat|busine
                   r"\bmaster'?s?\b[^.\n]{0,40}\b(?:business|management)\b", re.I)
 
 
-_MBA_STRICT = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bmms\b|business school|b-school", re.I)
+_MBA_STRICT = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bmms\b|business school|b-school|"
+                         r"master'?s?'?\s+(?:degree\s+)?(?:of|in)\s+business administration", re.I)
 _MUST = re.compile(r"mandatory|must|required|essential|compulsory|only", re.I)
 _SOFT = re.compile(r"prefer|plus|advantage|desirable|added|not mandatory|nice to have|or equivalent|good to have", re.I)
 
