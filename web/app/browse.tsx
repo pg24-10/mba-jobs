@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
 import * as L from "@/lib/jobs";
+import * as P from "@/lib/profile";
 import type { F, Job } from "@/lib/jobs";
+import type { Profile } from "@/lib/profile";
 
 /* ---------- small pieces ---------- */
 const PATHS: Record<L.Shape, React.ReactNode> = {
@@ -76,6 +80,13 @@ function loadSince(): string | null {
   }
 }
 
+type Kind = keyof Marks;
+const KINDS: Kind[] = ["saved", "applied", "hidden"];
+/** Where in the address bar a job is: /job/123, or the older ?job=123. */
+function jobInUrl(): number | null {
+  return L.jobFromPath(window.location.pathname) ?? (Number(new URLSearchParams(window.location.search).get("job")) || null);
+}
+
 type Toast = { msg: string; undo?: () => void; action?: { label: string; fn: () => void } };
 const PAGE = 50;
 
@@ -101,6 +112,11 @@ export default function Browse() {
   const [toast, setToastS] = useState<Toast | null>(null);
   const [wide, setWide] = useState(true);
   const [phoneOpen, setPhoneOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfileS] = useState<Profile | null>(null);
+  const [profSheet, setProfSheet] = useState(false);
+  const [matchOff, setMatchOff] = useState(false);
+  const synced = useRef<Marks | null>(null);
   const pushed = useRef(false);
   const req = useRef(0);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,13 +127,14 @@ export default function Browse() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const nf = L.readF(p);
-    const j = Number(p.get("job")) || null;
+    const j = jobInUrl();
     const mq = window.matchMedia("(min-width: 900px)");
     /* eslint-disable react-hooks/set-state-in-effect */
     setF(nf);
     setQText(nf.q);
     setJobId(j);
     setMarks(loadMarks());
+    setProfileS(P.loadProfile());
     setSince(loadSince());
     setWide(mq.matches);
     setPhoneOpen(!mq.matches && !!j);
@@ -126,9 +143,8 @@ export default function Browse() {
     const onMq = () => setWide(mq.matches);
     mq.addEventListener("change", onMq);
     const onPop = () => {
-      const p2 = new URLSearchParams(window.location.search);
-      const f2 = L.readF(p2);
-      const j2 = Number(p2.get("job")) || null;
+      const f2 = L.readF(new URLSearchParams(window.location.search));
+      const j2 = jobInUrl();
       pushed.current = false;
       setF((old) => (L.writeF(old) === L.writeF(f2) ? old : f2));
       setQText(f2.q);
@@ -137,16 +153,20 @@ export default function Browse() {
     };
     window.addEventListener("popstate", onPop);
     L.sb.rpc("last_updated").then(({ data }) => setUpdated(typeof data === "string" ? data : null));
+    L.sb.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: sub } = L.sb.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
     return () => {
       mq.removeEventListener("change", onMq);
       window.removeEventListener("popstate", onPop);
+      sub.subscription.unsubscribe();
     };
   }, []);
 
   /* ----- keep the address bar in step, so searches can be shared ----- */
   useEffect(() => {
     if (!ready) return;
-    const url = window.location.pathname + L.writeF(f, jobId);
+    // A chosen role gets its own address, /job/123, so the link can be sent to a friend.
+    const url = (jobId ? L.jobPath(jobId) : "/") + L.writeF(f);
     if (url !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", url);
   }, [f, jobId, ready]);
 
@@ -171,23 +191,113 @@ export default function Browse() {
     });
   }, []);
 
+  /* ----- signed in: join this device's marks and profile with the account's, then keep them in step ----- */
+  const uid = user?.id ?? null;
+  useEffect(() => {
+    synced.current = null;
+    if (!uid) return;
+    let gone = false;
+    (async () => {
+      const [{ data: rows, error }, { data: prof }] = await Promise.all([
+        L.sb.from("user_jobs").select("job_id, kind, at").order("at", { ascending: false }),
+        L.sb.from("user_profiles").select("*").maybeSingle(),
+      ]);
+      if (gone || error) return;
+      const local = loadMarks();
+      const server: Marks = { saved: [], applied: [], hidden: [] };
+      for (const r of (rows ?? []) as { job_id: number; kind: Kind }[]) if (KINDS.includes(r.kind)) server[r.kind].push(r.job_id);
+      const merged = Object.fromEntries(KINDS.map((k) => [k, [...new Set([...local[k], ...server[k]])]])) as Marks;
+      const up = KINDS.flatMap((k) => local[k].filter((id) => !server[k].includes(id)).map((id) => ({ user_id: uid, job_id: id, kind: k })));
+      if (up.length) await L.sb.from("user_jobs").upsert(up, { ignoreDuplicates: true });
+      if (gone) return;
+      synced.current = merged;
+      saveMarks(merged);
+      setMarks(merged);
+      // Profile: the newer one wins.
+      const mine = P.loadProfile();
+      const theirs = prof ? P.clean(prof as Record<string, unknown>) : null;
+      if (theirs && (!mine || theirs.updated_at > mine.updated_at)) {
+        P.saveProfile(theirs);
+        setProfileS(theirs);
+      } else if (mine) {
+        await L.sb.from("user_profiles").upsert({ user_id: uid, ...mine });
+      }
+    })();
+    return () => {
+      gone = true;
+    };
+  }, [uid]);
+  useEffect(() => {
+    const was = synced.current;
+    if (!uid || !was) return;
+    const add = KINDS.flatMap((k) => marks[k].filter((id) => !was[k].includes(id)).map((id) => ({ user_id: uid, job_id: id, kind: k })));
+    const del = KINDS.flatMap((k) => was[k].filter((id) => !marks[k].includes(id)).map((id) => [k, id] as const));
+    synced.current = marks;
+    if (add.length) L.sb.from("user_jobs").upsert(add, { ignoreDuplicates: true }).then(() => {});
+    for (const k of KINDS) {
+      const ids = del.filter(([kk]) => kk === k).map(([, id]) => id);
+      if (ids.length) L.sb.from("user_jobs").delete().eq("kind", k).in("job_id", ids).then(() => {});
+    }
+  }, [marks, uid]);
+
+  const setProfile = (p: Profile | null) => {
+    const next = p && !P.isEmpty(p) ? { ...p, updated_at: new Date().toISOString() } : null;
+    P.saveProfile(next);
+    setProfileS(next);
+    setMatchOff(false);
+    if (uid) {
+      if (next) L.sb.from("user_profiles").upsert({ user_id: uid, ...next }).then(() => {});
+      else L.sb.from("user_profiles").delete().eq("user_id", uid).then(() => {});
+    }
+    if (next) setF((o) => ({ ...o, sort: "match" }));
+    else setF((o) => (o.sort === "match" ? { ...o, sort: "fit" } : o));
+    setJobId(null);
+  };
+  const useMatch = !!profile && !matchOff;
+  const sort = !useMatch && f.sort === "match" ? "fit" : f.sort;
+  const sorts = useMatch ? [L.MATCH_SORT, ...L.SORTS] : L.SORTS;
+  const profKey = useMatch ? JSON.stringify(P.rpcArgs(profile!)) : "";
+  /** Jobs, with a match score when there is a profile. */
+  const jobsQ = useCallback(
+    (opts?: { count: "exact" }) =>
+      profKey
+        ? L.sb.rpc("match_jobs", JSON.parse(profKey), opts).select(L.COLS + ",match")
+        : L.sb.from("jobs").select(L.COLS, opts),
+    [profKey],
+  );
+  const signIn = async () => {
+    // Ask Supabase first, so a half-finished Google setup shows a message, not an error page.
+    const on = await fetch(`${L.SB_URL}/auth/v1/settings`, { headers: { apikey: L.SB_KEY } })
+      .then((r) => r.json())
+      .then((x) => !!x?.external?.google)
+      .catch(() => true);
+    if (!on) return setToast({ msg: "Google sign-in isn't switched on yet. Your marks are still kept on this device." });
+    const next = window.location.pathname + window.location.search;
+    L.sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+    }).then(({ error }) => {
+      if (error) setToast({ msg: "Google sign-in isn't switched on yet." });
+    });
+  };
+
   /* ----- the list ----- */
   const viewIds = f.view === "jobs" ? null : marks[f.view];
   const viewKey = viewIds ? viewIds.join(",") : "";
   const buildList = useCallback(
     (from: number, size: number) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = L.sb.from("jobs").select(L.COLS, { count: "exact" });
+      let q: any = jobsQ({ count: "exact" });
       if (f.view !== "jobs") q = q.in("id", viewKey ? viewKey.split(",").map(Number) : [-1]);
       else {
         q = L.applyFilters(q, f, { hidden: marks.hidden });
         if (newOnly && since) q = q.gt("first_seen_at", since);
       }
-      return L.applySort(q, f.sort).range(from, from + size - 1);
+      return L.applySort(q, sort).range(from, from + size - 1);
     },
     // hidden is read when the filters change; hiding a role removes it on screen right away
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [f, viewKey, newOnly, since],
+    [f, viewKey, newOnly, since, jobsQ, sort],
   );
 
   /* ----- lane counts: every function, under the other filters. Asked for after the list arrives. ----- */
@@ -234,6 +344,11 @@ export default function Browse() {
     const list = () => buildList(0, size).then((r: { error: unknown }) => (r.error ? new Promise((ok) => setTimeout(ok, 700)).then(() => buildList(0, size)) : r));
     Promise.all([list(), newQ]).then(([r, n]) => {
       if (id !== req.current) return;
+      if (r.error && profKey) {
+        // Matching isn't set up on the database yet: show the plain list and score on this device.
+        setMatchOff(true);
+        return;
+      }
       setLoading(false);
       if (r.error) {
         setErr(true);
@@ -279,10 +394,10 @@ export default function Browse() {
   useEffect(() => {
     if (!ready || jobId == null || loading) return;
     if (rows.some((r) => r.id === jobId) || extra?.id === jobId) return;
-    L.sb.from("jobs").select(L.COLS).eq("id", jobId).maybeSingle().then(({ data }) => {
-      if (data) setExtra(data as unknown as Job);
+    jobsQ().eq("id", jobId).maybeSingle().then(({ data }: { data: unknown }) => {
+      if (data) setExtra(data as Job);
     });
-  }, [jobId, rows, extra, ready, loading]);
+  }, [jobId, rows, extra, ready, loading, jobsQ]);
 
   /* ----- actions ----- */
   const change = (patch: Partial<F>) => {
@@ -310,7 +425,7 @@ export default function Browse() {
       return;
     }
     if (!pushed.current) {
-      window.history.pushState(window.history.state, "", window.location.pathname + L.writeF(f, id));
+      window.history.pushState(window.history.state, "", L.jobPath(id) + L.writeF(f));
       pushed.current = true;
     }
     setJobId(id);
@@ -348,6 +463,22 @@ export default function Browse() {
       },
     });
   };
+  const share = async (j: Job) => {
+    const url = window.location.origin + L.jobPath(j.id);
+    if (!wide && navigator.share) {
+      try {
+        await navigator.share({ title: `${j.title} at ${j.company}`, url });
+      } catch {}
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({ msg: "Link copied. Anyone with it can open this role." });
+    } catch {
+      setToast({ msg: url });
+    }
+  };
+  const score = (j: Job) => (profile ? j.match ?? P.explain(j, profile).score : null);
   const applied = (j: Job, site: string) => {
     if (marks.applied.includes(j.id)) return;
     setToast({
@@ -372,8 +503,11 @@ export default function Browse() {
         if (e.key === "Escape") t.blur();
         return;
       }
-      if (sheet) {
-        if (e.key === "Escape") setSheet(false);
+      if (sheet || profSheet) {
+        if (e.key === "Escape") {
+          setSheet(false);
+          setProfSheet(false);
+        }
         return;
       }
       const k = e.key.toLowerCase();
@@ -402,8 +536,8 @@ export default function Browse() {
 
   // No page scrolling behind the phone job page or the filter sheet.
   useEffect(() => {
-    document.body.style.overflow = sheet || (phoneOpen && !wide) ? "hidden" : "";
-  }, [sheet, phoneOpen, wide]);
+    document.body.style.overflow = sheet || profSheet || (phoneOpen && !wide) ? "hidden" : "";
+  }, [sheet, profSheet, phoneOpen, wide]);
 
   /* ---------- drawing ---------- */
   const chips = L.activeChips(f);
@@ -445,6 +579,9 @@ export default function Browse() {
 
   const filterRow = (
     <div className="filt">
+      <button className={"pill res" + (profile ? " has" : "")} onClick={() => setProfSheet(true)}>
+        {profile ? "Your profile" : "Match my resume"}
+      </button>
       <button className={"pill morebtn" + (moreCount ? " on" : "")} onClick={() => setSheet(true)}>
         {wide ? "More filters" : "Filters"}
         {moreCount > 0 && <em>{moreCount}</em>}
@@ -474,8 +611,8 @@ export default function Browse() {
       </button>
       <div className="sort">
         <span>Sort</span>
-        {L.SORTS.map(([k, l]) => (
-          <button key={k} className={f.sort === k ? "on" : ""} onClick={() => setF((o) => ({ ...o, sort: k }))}>
+        {sorts.map(([k, l]) => (
+          <button key={k} className={sort === k ? "on" : ""} onClick={() => setF((o) => ({ ...o, sort: k }))}>
             {l}
           </button>
         ))}
@@ -511,7 +648,7 @@ export default function Browse() {
               <button className="clr" onClick={clearAll}>Clear all</button>
             </>
           ) : (
-            wide && <span>· fit 3 or better, best fit first</span>
+            wide && <span>· fit 3 or better, {sort === "match" ? "best match to your resume first" : "best fit first"}</span>
           )}
           {since && (newCount > 0 || newOnly) && (
             <button className={"chip new" + (newOnly ? " on" : "")} onClick={() => { setNewOnly(!newOnly); setJobId(null); }} aria-pressed={newOnly}>
@@ -522,9 +659,9 @@ export default function Browse() {
       )}
       {isJobs && (
         <label className="psort">
-          Sort: {L.SORTS.find((s) => s[0] === f.sort)?.[1]} ▾
-          <select value={f.sort} onChange={(e) => setF((o) => ({ ...o, sort: e.target.value }))} aria-label="Sort">
-            {L.SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          Sort: {sorts.find((s) => s[0] === sort)?.[1]} ▾
+          <select value={sort} onChange={(e) => setF((o) => ({ ...o, sort: e.target.value }))} aria-label="Sort">
+            {sorts.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </label>
       )}
@@ -556,6 +693,7 @@ export default function Browse() {
             const [, , col, kind] = L.fnInfo(j.function);
             const saved = marks.saved.includes(j.id);
             const sel = wide && j.id === selId;
+            const m = score(j);
             return (
               <div
                 key={j.id}
@@ -568,15 +706,16 @@ export default function Browse() {
               >
                 <Shape kind={kind} fill={col === "w" ? "#C9CCD1" : L.COLOR[col]} />
                 <div>
-                  <div className="t">{j.title}</div>
                   <div className="c">
-                    {j.company}
+                    <span className="cn">{j.company}</span>
                     {j.past_isb_recruiter && <span className="isb">Past ISB recruiter</span>}
                     {isNew(j) && <span className="tag">New</span>}
                     {marks.applied.includes(j.id) && <span className="tag q">Applied</span>}
                     {!wide && saved && <span className="tag q">Saved</span>}
                   </div>
+                  <div className="t">{j.title}</div>
                   <div className="f">
+                    {m != null && <span className={"mt" + (m >= P.GOOD ? " good" : "")} title="How well this role matches your resume, out of 100">{m} match</span>}
                     {j.fit_score != null && <Dots n={j.fit_score} />}
                     <span>{L.loc(j)}</span>
                     {L.exp(j) && <span className="xl">{L.exp(j)}</span>}
@@ -607,7 +746,9 @@ export default function Browse() {
     </div>
   );
 
-  const detail = job ? <Detail key={job.id} j={job} marks={marks} flip={flip} hide={hide} onApply={applied} back={closePhone} /> : null;
+  const detail = job ? (
+    <Detail key={job.id} j={job} marks={marks} flip={flip} hide={hide} onApply={applied} back={closePhone} share={share} profile={profile} editProfile={() => setProfSheet(true)} />
+  ) : null;
 
   return (
     <div className="app">
@@ -631,6 +772,10 @@ export default function Browse() {
           ))}
         </nav>
         {wide && <SearchBox q={qText} setQ={setQText} inputRef={searchRef} />}
+        <div className="acct">
+          <Link className="how" href="/about">How it works</Link>
+          <Account user={user} signIn={signIn} openProfile={() => setProfSheet(true)} setToast={setToast} />
+        </div>
       </header>
       {!wide && <SearchBox q={qText} setQ={setQText} inputRef={searchRef} />}
 
@@ -684,6 +829,20 @@ export default function Browse() {
         />
       )}
 
+      {profSheet && (
+        <ProfileSheet
+          profile={profile}
+          signedIn={!!user}
+          signIn={signIn}
+          close={() => setProfSheet(false)}
+          save={(p) => {
+            setProfile(p);
+            setProfSheet(false);
+            setToast({ msg: p && !P.isEmpty(p) ? "Profile saved. Roles are now sorted by match." : "Profile deleted." });
+          }}
+        />
+      )}
+
       {toast && (
         <div className="toast" role="status">
           <span>{toast.msg}</span>
@@ -720,8 +879,26 @@ function SearchBox({ q, setQ, inputRef }: { q: string; setQ: (s: string) => void
   );
 }
 
+/* Company websites, looked up once per company. Quietly empty until supabase/007 is applied. */
+const SITES = new Map<number, Promise<string | null>>();
+function siteFor(id: number): Promise<string | null> {
+  if (!SITES.has(id))
+    SITES.set(
+      id,
+      (async () => {
+        const { data: k } = await L.sb.from("jobs").select("company_key").eq("id", id).maybeSingle();
+        const key = (k as { company_key?: string } | null)?.company_key;
+        if (!key) return null;
+        const { data } = await L.sb.from("company_sites").select("website").eq("company_key", key).maybeSingle();
+        return (data as { website?: string } | null)?.website ?? null;
+      })().catch(() => null),
+    );
+  return SITES.get(id)!;
+}
+const host = (u: string) => u.replace(/^https:\/\/(www\.)?/, "").replace(/\/.*$/, "");
+
 function Detail({
-  j, marks, flip, hide, onApply, back,
+  j, marks, flip, hide, onApply, back, share, profile, editProfile,
 }: {
   j: Job;
   marks: Marks;
@@ -729,7 +906,20 @@ function Detail({
   hide: (id: number) => void;
   onApply: (j: Job, site: string) => void;
   back: () => void;
+  share: (j: Job) => void;
+  profile: Profile | null;
+  editProfile: () => void;
 }) {
+  const [site, setSite] = useState<string | null>(null);
+  useEffect(() => {
+    let on = true;
+    siteFor(j.id).then((w) => on && setSite(w));
+    return () => {
+      on = false;
+    };
+  }, [j.id]);
+  const fit = profile ? P.explain(j, profile) : null;
+  const score = j.match ?? fit?.score ?? null;
   const [, , col, kind] = L.fnInfo(j.function);
   const saved = marks.saved.includes(j.id);
   const applied = marks.applied.includes(j.id);
@@ -743,11 +933,17 @@ function Detail({
           <button className="back" onClick={back} aria-label="Back to the list">←</button>
           <div>
             <span className="lbl">{L.fnLabel(j.function)}</span>
-            <h2>{j.title}</h2>
             <div className="co">
-              {j.company}
+              {site ? (
+                <a className="cn" href={site} target="_blank" rel="noopener noreferrer" title={`${j.company}'s website`}>
+                  {j.company} <span className="ws">{host(site)} ↗</span>
+                </a>
+              ) : (
+                <span className="cn">{j.company}</span>
+              )}
               {j.past_isb_recruiter && <span className="isb">Past ISB recruiter</span>}
             </div>
+            <h2>{j.title}</h2>
           </div>
         </div>
         <div className="db">
@@ -760,7 +956,33 @@ function Detail({
               {applied ? "✓ Applied" : "Mark applied"}
             </button>
             <button className="act" onClick={() => hide(j.id)}>Hide</button>
+            <button className="act" onClick={() => share(j)}>Share</button>
           </div>
+          {j.is_stale && (
+            <p className="stale">
+              We first saw this role over a month ago and it may have closed. Check the original post before you spend time on it.
+            </p>
+          )}
+          {fit && score != null && (
+            <div className={"mx" + (score >= P.GOOD ? " good" : "")}>
+              <div className="mx-h">
+                <b>{score}</b>
+                <span>match to your resume</span>
+                <button onClick={editProfile}>Edit profile</button>
+              </div>
+              <ul>
+                {fit.parts.map((x) => (
+                  <li key={x.label}>
+                    <span className="mx-l">{x.label}</span>
+                    <span className="mx-bar" aria-hidden>
+                      <i style={{ width: `${(100 * x.got) / x.of}%` }} />
+                    </span>
+                    <span className="mx-w">{x.why}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="kv">
             {L.facts(j).map(([a, b]) => (
               <div key={a}>
@@ -924,6 +1146,206 @@ function Sheet({
           <button className="go" onClick={close}>
             {total == null ? "Show roles" : `Show ${fmt(total)} ${total === 1 ? "role" : "roles"}`}
           </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Account({
+  user, signIn, openProfile, setToast,
+}: {
+  user: User | null;
+  signIn: () => void;
+  openProfile: () => void;
+  setToast: (t: Toast) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [sure, setSure] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setSure(false);
+      }
+    };
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [open]);
+  if (!user)
+    return (
+      <button className="pill gin" onClick={signIn}>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+          <path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z" />
+          <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z" />
+          <path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.1a11 11 0 0 0 0 9.8l3.7-2.8z" />
+          <path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z" />
+        </svg>
+        Sign in
+      </button>
+    );
+  const name = (user.user_metadata?.full_name as string | undefined) || user.email || "You";
+  const pic = user.user_metadata?.avatar_url as string | undefined;
+  return (
+    <div className="me" ref={ref}>
+      <button className="av" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Your account">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {pic ? <img src={pic} alt="" referrerPolicy="no-referrer" /> : name[0].toUpperCase()}
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          <div className="who">
+            <b>{name}</b>
+            {user.email && name !== user.email && <small>{user.email}</small>}
+            <small>Saved, applied and hidden roles follow you to any device.</small>
+          </div>
+          <button role="menuitem" onClick={() => { setOpen(false); openProfile(); }}>Your profile</button>
+          <button role="menuitem" onClick={() => { setOpen(false); L.sb.auth.signOut(); }}>Sign out</button>
+          {sure ? (
+            <button
+              role="menuitem"
+              className="danger"
+              onClick={async () => {
+                const { error } = await L.sb.rpc("delete_my_account");
+                setOpen(false);
+                setSure(false);
+                if (error) return setToast({ msg: "Couldn't delete your account. Try again later." });
+                await L.sb.auth.signOut();
+                setToast({ msg: "Account deleted. Your marks stay on this device only." });
+              }}
+            >
+              Delete for good: your account, synced marks and profile
+            </button>
+          ) : (
+            <button role="menuitem" className="quiet" onClick={() => setSure(true)}>Delete account…</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Picks({ opts, on, set }: { opts: [string, string][]; on: string[]; set: (v: string[]) => void }) {
+  return (
+    <div className="opts">
+      {opts.map(([k, l]) => (
+        <button key={k} className={"opt" + (on.includes(k) ? " on" : "")} aria-pressed={on.includes(k)} onClick={() => set(on.includes(k) ? on.filter((x) => x !== k) : [...on, k])}>
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProfileSheet({
+  profile, signedIn, signIn, close, save,
+}: {
+  profile: Profile | null;
+  signedIn: boolean;
+  signIn: () => void;
+  close: () => void;
+  save: (p: Profile | null) => void;
+}) {
+  const [p, setP] = useState<Profile>(profile ?? P.EMPTY_PROFILE);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [paste, setPaste] = useState(false);
+  const [text, setText] = useState("");
+  const [skill, setSkill] = useState("");
+  const read = (raw: string) => {
+    const r = P.readResume(raw);
+    if (P.isEmpty(r)) return setNote("Couldn't find much in that. Fill in the boxes below yourself.");
+    setP(r);
+    setNote("Here's what we read. Fix anything that's wrong, then save.");
+  };
+  const upload = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      read(f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf") ? await P.pdfText(f) : await f.text());
+    } catch {
+      setNote("Couldn't read that file. Try a PDF, or paste the text instead.");
+    }
+    setBusy(false);
+  };
+  const up = <K extends keyof Profile>(k: K, v: Profile[K]) => setP((o) => ({ ...o, [k]: v }));
+  const addSkill = () => {
+    const v = skill.trim();
+    if (v && !p.skills.includes(v)) up("skills", [...p.skills, v].slice(0, 30));
+    setSkill("");
+  };
+  return (
+    <>
+      <div className="scrim" onClick={close} />
+      <div className="sheet prof" role="dialog" aria-modal="true" aria-label="Your profile">
+        <div className="sh-top">
+          <h2>{profile ? "Your profile" : "Match my resume"}</h2>
+          <button className="sh-x" onClick={close} aria-label="Close">×</button>
+        </div>
+        <div className="sh-body">
+          <div className="drop">
+            <label className={"pill res" + (busy ? " busy" : "")}>
+              {busy ? "Reading…" : "Choose a PDF"}
+              <input type="file" accept=".pdf,.txt,application/pdf,text/plain" hidden onChange={(e) => upload(e.target.files?.[0])} />
+            </label>
+            <button className="lnk" onClick={() => setPaste((x) => !x)}>{paste ? "Hide the text box" : "or paste the text"}</button>
+            <p>Your resume is read on this device and never uploaded. Only the short profile below is kept{signedIn ? ", with your account" : ""}.</p>
+          </div>
+          {paste && (
+            <div className="paste">
+              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste your resume here" rows={6} />
+              <button className="pill" disabled={!text.trim()} onClick={() => read(text)}>Read it</button>
+            </div>
+          )}
+          {note && <p className="note">{note}</p>}
+
+          <h3>Years of work</h3>
+          <input
+            className="yrs"
+            type="number"
+            min={0}
+            max={40}
+            step={0.5}
+            value={p.years ?? ""}
+            onChange={(e) => up("years", e.target.value === "" ? null : Math.max(0, Math.min(40, Number(e.target.value))))}
+            placeholder="e.g. 4"
+          />
+          <h3>Roles you want</h3>
+          <Picks opts={L.FUNCS.map(([k, l]) => [k, l])} on={p.functions} set={(v) => up("functions", v)} />
+          <h3>Your background</h3>
+          <Picks opts={L.BACKGROUNDS.filter(([k]) => k !== "any")} on={p.backgrounds} set={(v) => up("backgrounds", v)} />
+          <h3>Industries you know</h3>
+          <Picks opts={L.INDUSTRIES.filter(([k]) => k !== "other")} on={p.industries} set={(v) => up("industries", v)} />
+          <h3>Cities</h3>
+          <Picks opts={L.CITIES.map((c) => [c, c])} on={p.cities} set={(v) => up("cities", v)} />
+          <h3>Skills</h3>
+          <div className="opts">
+            {p.skills.map((s) => (
+              <button key={s} className="opt on" onClick={() => up("skills", p.skills.filter((x) => x !== s))} aria-label={`Remove ${s}`}>
+                {s} ×
+              </button>
+            ))}
+            <input
+              className="addsk"
+              value={skill}
+              onChange={(e) => setSkill(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addSkill()}
+              onBlur={addSkill}
+              placeholder="Add a skill"
+            />
+          </div>
+          {!signedIn && (
+            <p className="note">
+              Kept on this device. <button className="lnk" onClick={signIn}>Sign in with Google</button> to use it on your phone too.
+            </p>
+          )}
+        </div>
+        <div className="sh-bar">
+          {profile && <button className="clr" onClick={() => save(null)}>Delete profile</button>}
+          <button className="go" disabled={P.isEmpty(p)} onClick={() => save(p)}>Save and sort by match</button>
         </div>
       </div>
     </>

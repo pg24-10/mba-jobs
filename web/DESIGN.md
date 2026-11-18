@@ -63,10 +63,12 @@ The shape on a tile or header uses the "partner" colour (yellow tile → red sha
 - Pills (buttons, filters, search): fully round.
 - Spacing steps: 4, 6, 8, 12, 16, 24, 32 px.
 - Card title 18px Jost; job page title 26px (23px on phones).
+- The company name leads every card (Jost 600, 15px, ink) and the job page (Jost 700, 20px, linked to the company's site when we know it). It is never grey.
+- Match tags: a small grey pill with "N match"; ink with white text at 70 and above.
 
 ## Layout
 
-- **Laptop:** top bar (logo, Jobs / Saved / Applied with counts, search pill). Under it, the function lane strip; then filter pills and sort; then a thin status line ("N roles match", active filters with ×, Clear all, Last updated). Then the list on the left and the job page on the right (about 500px), with the apply button fixed at the bottom of the job page.
+- **Laptop:** top bar (logo, Jobs / Saved / Applied with counts, search pill, How it works, Sign in). Under it, the function lane strip; then filter pills (the yellow "Match my resume" pill first) and sort; then a thin status line ("N roles match", active filters with ×, Clear all, Last updated). Then the list on the left and the job page on the right (about 500px), with the apply button fixed at the bottom of the job page.
 - **Phone:** search pill, lane strip (scrolls sideways), filter chips (scroll sideways), status line, list, bottom bar with Jobs / Saved / Applied. Tapping a job opens the job page as its own screen with a round Back button and the apply button fixed at the bottom.
 
 ## Wording

@@ -1,0 +1,157 @@
+# Company websites shown on each job page (18 Nov 2026).
+# Key = company_key as the collector writes it (lower case, legal suffixes dropped); value = home page.
+# Only employers we're sure of: the 150 with the most live roles, minus recruiters, job boards and
+# names we couldn't place. Load with supabase/008_company_sites.sql (made from this file).
+
+"ey": https://www.ey.com/en_in
+"deloitte": https://www.deloitte.com/in
+"amazon": https://www.amazon.jobs
+"amazon com": https://www.amazon.jobs
+"amazon web services": https://aws.amazon.com
+"wipro": https://www.wipro.com
+"infosys": https://www.infosys.com
+"pwc": https://www.pwc.in
+"pwc acceleration center": https://www.pwc.in
+"hsbc": https://www.hsbc.co.in
+"idfc first bank": https://www.idfcfirstbank.com
+"exl": https://www.exlservice.com
+"exl service": https://www.exlservice.com
+"ntt data": https://www.nttdata.com
+"ntt data north america": https://www.nttdata.com
+"ntt data business solutions": https://www.nttdata-solutions.com
+"yash technologies": https://www.yash.com
+"google": https://about.google
+"accenture": https://www.accenture.com/in-en
+"accenture in": https://www.accenture.com/in-en
+"capgemini": https://www.capgemini.com/in-en
+"genpact": https://www.genpact.com
+"hcltech": https://www.hcltech.com
+"standard chartered bank": https://www.sc.com/in
+"standard chartered": https://www.sc.com/in
+"hitachi energy": https://www.hitachienergy.com
+"micron technology": https://www.micron.com
+"schneider electric": https://www.se.com/in/en
+"bajaj finance": https://www.bajajfinserv.in
+"bajaj finserv": https://www.bajajfinserv.in
+"pepsico": https://www.pepsico.com
+"dbs bank": https://www.dbs.com/india
+"tata capital": https://www.tatacapital.com
+"oracle": https://www.oracle.com
+"abb": https://global.abb
+"wells fargo": https://www.wellsfargo.com
+"amgen": https://www.amgen.com
+"l and t technology services": https://www.ltts.com
+"persistent systems": https://www.persistent.com
+"birlasoft": https://www.birlasoft.com
+"northern trust": https://www.northerntrust.com
+"siemens": https://www.siemens.com
+"salesforce": https://www.salesforce.com
+"novartis": https://www.novartis.com
+"cgi": https://www.cgi.com
+"yes bank": https://www.yesbank.in
+"deutsche bank": https://www.db.com
+"thermo fisher scientific": https://www.thermofisher.com
+"d e shaw": https://www.deshawindia.com
+"citi": https://www.citigroup.com
+"cushman and wakefield": https://www.cushmanwakefield.com
+"ujjivan small finance bank": https://www.ujjivansfb.in
+"hewlett packard enterprise": https://www.hpe.com
+"hewlett packard enterprise hpe": https://www.hpe.com
+"optum": https://www.optum.com
+"wsp in": https://www.wsp.com
+"vertiv": https://www.vertiv.com
+"honeywell": https://www.honeywell.com
+"honeywell technologies": https://www.honeywell.com
+"kpmg": https://kpmg.com/in
+"barclays": https://home.barclays
+"epam systems": https://www.epam.com
+"boston consulting group": https://www.bcg.com
+"caterpillar": https://www.caterpillar.com
+"american express": https://www.americanexpress.com
+"zensar technologies": https://www.zensar.com
+"vodafone": https://www.vodafone.com
+"jpmorganchase": https://www.jpmorganchase.com
+"alvarez and marsal": https://www.alvarezandmarsal.com
+"kroll": https://www.kroll.com
+"goldman sachs": https://www.goldmansachs.com
+"target": https://corporate.target.com
+"tata consultancy services": https://www.tcs.com
+"cisco": https://www.cisco.com
+"philips": https://www.philips.com
+"synchrony": https://www.synchrony.com
+"microsoft": https://www.microsoft.com
+"ibm": https://www.ibm.com
+"hdfc bank": https://www.hdfcbank.com
+"ge vernova": https://www.gevernova.com
+"bnp paribas": https://group.bnpparibas
+"state street": https://www.statestreet.com
+"ebay": https://www.ebayinc.com
+"cognizant": https://www.cognizant.com
+"morgan stanley": https://www.morganstanley.com
+"sun pharma": https://sunpharma.com
+"cargill": https://www.cargill.com
+"diageo": https://www.diageo.com
+"roche": https://www.roche.com
+"nobroker": https://www.nobroker.in
+"phonepe": https://www.phonepe.com
+"lseg": https://www.lseg.com
+"orange": https://www.orange.com
+"orange business": https://www.orange-business.com
+"larsen and toubro": https://www.larsentoubro.com
+"s and p global": https://www.spglobal.com
+"teradata": https://www.teradata.com
+"dr reddy s laboratories": https://www.drreddys.com
+"dp world": https://www.dpworld.com
+"icici bank": https://www.icicibank.com
+"a p moller maersk": https://www.maersk.com
+"societe generale global solution centre": https://www.societegenerale.com
+"dentsu": https://www.dentsu.com
+"coforge": https://www.coforge.com
+"wpp": https://www.wpp.com
+"wpp media": https://www.wppmedia.com
+"ubs": https://www.ubs.com
+"takeda": https://www.takeda.com
+"hilton": https://www.hilton.com
+"cummins": https://www.cummins.com
+"nokia": https://www.nokia.com
+"publicis sapient": https://www.publicissapient.com
+"general mills": https://www.generalmills.com
+"livspace": https://www.livspace.com
+"hp": https://www.hp.com
+"bank of america": https://www.bankofamerica.com
+"myntra": https://www.myntra.com
+"jacobs": https://www.jacobs.com
+"cornerstone ondemand": https://www.cornerstoneondemand.com
+"dhl": https://www.dhl.com
+"colgate palmolive": https://www.colgatepalmolive.com
+"unisys": https://www.unisys.com
+"hexaware technologies": https://hexaware.com
+"bristol myers squibb": https://www.bms.com
+"aecom": https://aecom.com
+"ecolab": https://www.ecolab.com
+"eclerx": https://eclerx.com
+"marriott international": https://www.marriott.com
+"astrazeneca": https://www.astrazeneca.com
+"siemens healthineers": https://www.siemens-healthineers.com
+"mars": https://www.mars.com
+"visteon": https://www.visteon.com
+"medtronic": https://www.medtronic.com
+"carrier": https://www.corporate.carrier.com
+"alstom": https://www.alstom.com
+"eli lilly": https://www.lilly.com
+"niit": https://www.niit.com
+"omnicom global solutions": https://www.omnicomgroup.com
+"axis bank": https://www.axisbank.com
+"jade global": https://www.jadeglobal.com
+"cadila pharmaceuticals": https://www.cadilapharma.com
+"uber": https://www.uber.com
+"servicenow": https://www.servicenow.com
+"nomura": https://www.nomura.com
+"gartner": https://www.gartner.com
+"makemytrip": https://www.makemytrip.com
+"adp": https://www.adp.com
+"verizon": https://www.verizon.com
+"blackrock": https://www.blackrock.com
+"ust": https://www.ust.com
+"applied materials": https://www.appliedmaterials.com
+"aditya birla capital": https://www.adityabirlacapital.com

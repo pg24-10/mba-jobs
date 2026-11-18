@@ -1,17 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Read-only public key: it can only read jobs (see supabase/schema.sql).
-export const sb = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, ""),
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: false } },
-);
+// Public key: reads jobs, and with a Google sign-in, the person's own marks and profile (see supabase/).
+export const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
+export const SB_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const inBrowser = typeof window !== "undefined";
+export const sb = createClient(SB_URL, SB_KEY, {
+  auth: { persistSession: inBrowser, autoRefreshToken: inBrowser, flowType: "pkce", detectSessionInUrl: false },
+});
 
 export const COLS =
   "id,title,company,location_city,work_mode,source_links,posted_at,first_seen_at," +
   "experience_min,experience_max,salary_min_lpa,salary_max_lpa,applicants," +
   "past_isb_recruiter,function,seniority,mba_requirement,fit_score,summary," +
-  "duties,looking_for,key_skills,employment_type";
+  "duties,looking_for,key_skills,employment_type,is_stale,background_wanted,industry";
 
 export type Job = {
   id: number;
@@ -37,6 +38,11 @@ export type Job = {
   looking_for: string[] | null;
   key_skills: string[] | null;
   employment_type: string | null;
+  is_stale: boolean | null;
+  background_wanted: string[] | null;
+  industry: string | null;
+  /** 0-100, only when a resume profile is set */
+  match?: number;
 };
 
 /* ---------- functions: colour and shape (see DESIGN.md) ---------- */
@@ -149,6 +155,7 @@ export const SORTS: [string, string][] = [
   ["new", "Newest"],
   ["pay", "Highest pay"],
 ];
+export const MATCH_SORT: [string, string] = ["match", "Best match"];
 
 /* ---------- filters live in the page address ---------- */
 export type F = {
@@ -203,12 +210,12 @@ export function readF(p: URLSearchParams): F {
     own: p.get("own") === "1",
     noagency: p.get("noagency") === "1",
     norepost: p.get("norepost") === "1",
-    sort: ["fit", "new", "pay"].includes(p.get("sort") ?? "") ? p.get("sort")! : "fit",
+    sort: ["fit", "new", "pay", "match"].includes(p.get("sort") ?? "") ? p.get("sort")! : "fit",
     view: v === "saved" || v === "applied" ? v : "jobs",
   };
 }
 
-export function writeF(f: F, job?: number | null): string {
+export function writeF(f: F): string {
   const p = new URLSearchParams();
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.fit !== 3) p.set("fit", String(f.fit));
@@ -230,7 +237,6 @@ export function writeF(f: F, job?: number | null): string {
   if (f.norepost) p.set("norepost", "1");
   if (f.sort !== "fit") p.set("sort", f.sort);
   if (f.view !== "jobs") p.set("view", f.view);
-  if (job) p.set("job", String(job));
   const s = p.toString();
   return s ? "?" + s : "";
 }
@@ -314,6 +320,11 @@ export function applyFilters(q: any, f: F, opts: { hidden: number[]; skipFn?: bo
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function applySort(q: any, sort: string) {
+  if (sort === "match")
+    return q
+      .order("match", { ascending: false })
+      .order("fit_score", { ascending: false })
+      .order("id", { ascending: false });
   if (sort === "new") return q.order("posted_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
   if (sort === "pay")
     return q
@@ -398,4 +409,11 @@ export function updatedLabel(iso: string | null): string {
     minute: "2-digit",
   });
   return `Updated ${s} IST`;
+}
+
+/** The address of a job's own page, which can be shared. */
+export const jobPath = (id: number) => `/job/${id}`;
+export function jobFromPath(path: string): number | null {
+  const m = /^\/job\/(\d+)\/?$/.exec(path);
+  return m ? Number(m[1]) : null;
 }
