@@ -54,10 +54,10 @@ begin
     -- New jobs per source per day, from the run log (one row per machine).
     'runs_by_day', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'day', d, 'source', source, 'machines', machines, 'found', found, 'new', new_jobs,
+               'day', d, 'source', source, 'machines', machines, 'found', seen, 'new', new_jobs,
                'blocked', blocked, 'failed', failed) order by d, source)
       from (select (started_at at time zone 'Asia/Kolkata')::date d, source,
-                   count(*) machines, sum(jobs_found) found, sum(jobs_new) new_jobs,
+                   count(*) machines, sum(jobs_found) seen, sum(jobs_new) new_jobs,
                    count(*) filter (where errors ilike '%blocked%') blocked,
                    count(*) filter (where status = 'failed') failed
             from public.runs
@@ -69,13 +69,13 @@ begin
     'latest', coalesce((
       select jsonb_agg(jsonb_build_object(
                'source', source, 'started', started, 'finished', finished, 'machines', machines,
-               'running', running, 'blocked', blocked, 'failed', failed, 'found', found, 'new', new_jobs,
+               'running', running, 'blocked', blocked, 'failed', failed, 'found', seen, 'new', new_jobs,
                'error', error) order by source)
       from (select r.source, min(r.started_at) started, max(r.finished_at) finished, count(*) machines,
                    count(*) filter (where r.status = 'running') running,
                    count(*) filter (where r.errors ilike '%blocked%') blocked,
                    count(*) filter (where r.status = 'failed') failed,
-                   sum(r.jobs_found) found, sum(r.jobs_new) new_jobs,
+                   sum(r.jobs_found) seen, sum(r.jobs_new) new_jobs,
                    left(max(r.errors), 200) error
             from public.runs r
             join (select source, max(started_at) last from public.runs group by source) l
@@ -119,3 +119,12 @@ $$;
 
 revoke execute on function public.admin_dashboard() from public, anon;
 grant  execute on function public.admin_dashboard() to authenticated;
+
+-- Lets the site show the "Dashboard" menu item to admins only.
+create or replace function public.is_admin()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$ select exists (select 1 from public.admins where user_id = auth.uid()) $$;
+revoke execute on function public.is_admin() from public, anon;
+grant  execute on function public.is_admin() to authenticated;

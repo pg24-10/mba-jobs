@@ -1162,7 +1162,12 @@ function Account({
 }) {
   const [open, setOpen] = useState(false);
   const [sure, setSure] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!user) return;
+    L.sb.rpc("is_admin").then(({ data }) => setAdmin(data === true));
+  }, [user]);
   useEffect(() => {
     if (!open) return;
     const off = (e: MouseEvent) => {
@@ -1202,6 +1207,7 @@ function Account({
             <small>Saved, applied and hidden roles follow you to any device.</small>
           </div>
           <button role="menuitem" onClick={() => { setOpen(false); openProfile(); }}>Your profile</button>
+          {admin && <Link role="menuitem" href="/admin" onClick={() => setOpen(false)}>Dashboard</Link>}
           <button role="menuitem" onClick={() => { setOpen(false); L.sb.auth.signOut(); }}>Sign out</button>
           {sure ? (
             <button

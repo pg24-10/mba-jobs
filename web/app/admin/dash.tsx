@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Session } from "@supabase/supabase-js";
 import { sb } from "@/lib/jobs";
@@ -114,7 +114,7 @@ export default function Dash() {
     );
   else if (err) body = <p className="ad-msg">Couldn&apos;t load the dashboard: {err}</p>;
   else if (!data) body = <p className="ad-msg">Loading…</p>;
-  else body = <Board d={data} />;
+  else body = <Catch><Board d={data} /></Catch>;
 
   return (
     <div className="ab">
@@ -330,4 +330,15 @@ function Bars({ title, days, get, max, c }: { title: string; days: string[]; get
       </div>
     </figure>
   );
+}
+
+/** If drawing the numbers fails, say so instead of leaving a blank page. */
+class Catch extends Component<{ children: ReactNode }, { err: string }> {
+  state = { err: "" };
+  static getDerivedStateFromError(e: Error) {
+    return { err: e.message || String(e) };
+  }
+  render() {
+    return this.state.err ? <p className="ad-msg">The dashboard hit an error: {this.state.err}</p> : this.props.children;
+  }
 }
