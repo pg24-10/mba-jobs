@@ -91,7 +91,7 @@ def thin(description):
 # Such posts are hidden (too_thin, so the site never shows them) and never tagged;
 # tag_skipped says why. Kept rather than deleted so collection doesn't add them back.
 
-_G = r"(?:male|female|females|women|woman|men|ladies|lady|girls?|boys?|gents)"
+_G = r"(?:males?|females?|women|woman|men|ladies|lady|girls?|boys?|gents|gentlemen)"
 _BOTH = r"(?!\s*(?:/|or|&|and|,)\s*" + _G + r")"
 _NOT_PERK = r"(?<!for )(?<!for\s)"                  # "cab for women only" is a perk, not a rule
 _BIAS = {
@@ -101,7 +101,10 @@ _BIAS = {
         r"(?:only|preferred|preferably|required|needed|wanted)\b(?!\s+(?:morning|night|day|rotational)?\s*shift)" +
         r"|\bprefer(?:ably|red|ence)?\s*(?:to|for|:|-)?\s*(?:a\s+)?" + _G + r"\b" + _BOTH +
         r"|\bfirst preference for " + _G + r"\b" +
-        r"|\bgender\s*(?::|-|–)\s*(?:only\s+(?:for\s+)?)?(?:male|female)\b" + _BOTH, re.I),
+        r"|\bgender\s*(?::|-|–)\s*(?:only\s+(?:for\s+)?)?(?:male|female)\b" + _BOTH +
+        # "Personal Assistant (Female)", "Driver - Males only" (mostly in titles)
+        r"|\(\s*(?:only\s+)?(?:fe)?males?(?:\s+(?:only|candidates?))?\s*\)"
+        r"|\s[-–]\s*(?:only\s+)?(?:fe)?males?(?:\s+(?:only|candidates?))?\s*$", re.I | re.M),
     "age": re.compile(
         r"\bage[ds]?\b[^.\n]{0,25}?\b[1-6]\d\s*(?:-|–|to)\s*[1-6]\d\b"
         r"|\bage\b[^.\n]{0,25}?\b(?:below|under|upto|up to|max(?:imum)?|less than|not more than|within)\s*:?\s*[1-6]\d\b"
@@ -115,9 +118,10 @@ _BIAS = {
 _DIVERSITY = re.compile(r"diversity|equal opportunit|women (?:returners?|returning)|career break", re.I)
 
 
-def biased(text):
-    """Why this post discriminates (gender / age / marital status), or None."""
-    text = text or ""
+def biased(text, title=None):
+    """Why this post discriminates (gender / age / marital status), or None.
+    The title is read too: "Personal Assistant (Female)" may say it nowhere else."""
+    text = f"{title or ''}\n{text or ''}"
     why = []
     for name, pat in _BIAS.items():
         for m in pat.finditer(text):
@@ -333,7 +337,7 @@ def export(db, limit=50, path=BATCH, log=print):
             if len(rows) >= limit:
                 break
             key = _same_key(r)
-            why = biased(r["description_trimmed"])
+            why = biased(r["description_trimmed"], r.get("title"))
             if why:
                 bias.append((r["id"], why))
             elif thin(r["description_trimmed"]):
