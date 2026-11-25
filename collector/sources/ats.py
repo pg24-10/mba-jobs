@@ -132,17 +132,34 @@ def _when(value):
 
 class ATS:
     def __init__(self, log=print):
-        self.delay = float(config("settings")["ats"]["delay_seconds"])
+        s = config("settings")["ats"]
+        self.delay = float(s["delay_seconds"])
+        self.workday_delay = float(s.get("workday_delay_seconds", self.delay))
+        self.retry_waits = [float(w) for w in s.get("retry_429_seconds", [30, 90])]
         self.http = requests.Session()
         self.http.verify = _VERIFY
         self.http.headers["User-Agent"] = "mba-jobs/1.0 (job aggregator for students)"
         self.log = log
         self._last = 0.0
 
+    def _send(self, method, url, **kw):
+        """One request, paced. A 429 ("too many requests") waits as long as the site asks
+        (Retry-After, capped at 5 min) or else 30 s then 90 s, and tries again; still 429
+        after that, it raises like any other error so the caller moves to the next board."""
+        gap = self.workday_delay if ".myworkdayjobs.com" in url else self.delay
+        for wait in self.retry_waits + [None]:
+            time.sleep(max(0.0, self._last + gap - time.time()))
+            self._last = time.time()
+            r = self.http.request(method, url, timeout=30, **kw)
+            if r.status_code != 429 or wait is None:
+                return r
+            asked = r.headers.get("Retry-After", "")
+            wait = min(float(asked), 300.0) if asked.isdigit() else wait
+            self.log(f"    {urlparse(url).hostname}: 429, waiting {wait:.0f}s and trying again")
+            time.sleep(wait)
+
     def _get(self, url):
-        time.sleep(max(0.0, self._last + self.delay - time.time()))
-        self._last = time.time()
-        r = self.http.get(url, timeout=30)
+        r = self._send("GET", url)
         if r.status_code == 404:
             return None
         r.raise_for_status()
@@ -159,9 +176,7 @@ class ATS:
         return r.text if r.ok else None
 
     def _post(self, url, body):
-        time.sleep(max(0.0, self._last + self.delay - time.time()))
-        self._last = time.time()
-        r = self.http.post(url, json=body, timeout=30)
+        r = self._send("POST", url, json=body)
         if r.status_code == 404:
             return None
         r.raise_for_status()

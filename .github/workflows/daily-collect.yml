@@ -1,13 +1,15 @@
 name: Daily collect
 
-# Once a day at about 1 PM IST: collect new jobs from every source and save them
+# Once a day (asked for 12:53 PM IST; GitHub has been starting it 8-12 hours late): collect new jobs from every source and save them
 # to Supabase. Each source is its own job, all running side by side with up to 6 h
 # each: one machine each for iimjobs, Indeed and the careers pages, Naukri split
 # across 5 machines and LinkedIn across 10 (machine K of N does every N-th search,
 # starting at K). Jobs are saved after every search; a source that runs out of time
 # stops just before GitHub's 6 h cut-off and the next day carries on from the same
 # search. Each source (and each split machine) catches up from its own last finished
-# run, so a missed day is picked up the next time; Naukri only ever looks back 1 day
+# run, so a missed day is picked up the next time. LinkedIn's 10 machines start 3 min
+# apart (LinkedIn turns away a burst from GitHub's servers), give up after 3 push-backs
+# instead of resting for 2 hours, and skip a search that blocked them before finishing it; Naukri only ever looks back 1 day
 # (config/settings.yaml). Can also be started by hand from the
 # Actions tab ("Run workflow").
 #
@@ -64,8 +66,8 @@ jobs:
       # Stop 20 min before the 6 h cut-off, so the run can note where to carry on.
       COLLECT_TIME_LIMIT_MINUTES: "340"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -75,14 +77,23 @@ jobs:
           DAYS: ${{ inputs.days }}
           SHARD: ${{ matrix.shard }}
           OF: ${{ matrix.of }}
-        run: >-
-          python -u -m collector.cli daily --sources ${{ matrix.source }}
-          ${SHARD:+--shard "$SHARD/$OF"} ${DAYS:+--days "$DAYS"}
+          SOURCE: ${{ matrix.source }}
+        run: |
+          if [ "$SOURCE" = linkedin ]; then
+            # machine K waits 3*(K-1) min, and gets that much less of the time limit
+            WAIT=$(( (SHARD - 1) * 3 ))
+            echo "Starting in $WAIT min, so the LinkedIn machines don't all arrive at once"
+            sleep $(( WAIT * 60 ))
+            export COLLECT_TIME_LIMIT_MINUTES=$(( COLLECT_TIME_LIMIT_MINUTES - WAIT ))
+            export LINKEDIN_BLOCK_RESTS_MINUTES="5,10"   # 3rd push-back: stop for today
+          fi
+          python -u -m collector.cli daily --sources "$SOURCE" \
+            ${SHARD:+--shard "$SHARD/$OF"} ${DAYS:+--days "$DAYS"}
       - name: Summary on the run page
         if: always()
         run: |
           python - <<'EOF' >> "$GITHUB_STEP_SUMMARY" || true
-          import json, pathlib
+          import json, pathlib, sys
           f = pathlib.Path("data/logs/runs.jsonl")
           if not f.exists():
               print("No run summary (the run stopped before the end).")
@@ -91,5 +102,14 @@ jobs:
               print("| Source | Status | Found | Kept | New | Note |\n|---|---|---|---|---|---|")
               for name, s in run.items():
                   if isinstance(s, dict):
-                      print(f"| {name} | {s['status']} | {s['found']} | {s['kept']} | {s['new']} | {s['error'] or ''} |")
+                      note = s["error"] or ""
+                      # a green job can still mean a site turned us away: say so in red
+                      if s["status"] == "failed" or "blocked" in note:
+                          mark = "🔴 blocked" if "blocked" in note else "🔴 failed"
+                          print(f"::warning::{name}: {note[:300]}", file=sys.stderr)
+                      elif note:
+                          mark = f"🟡 {s['status']}"
+                      else:
+                          mark = f"🟢 {s['status']}"
+                      print(f"| {name} | {mark} | {s['found']} | {s['kept']} | {s['new']} | {note} |")
           EOF

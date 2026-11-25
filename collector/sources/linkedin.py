@@ -9,6 +9,7 @@ finished so far).
 """
 
 import html
+import os
 import random
 import re
 import time
@@ -74,7 +75,11 @@ class LinkedIn:
         self.min_delay = float(s["min_delay_seconds"])
         self.max_pages = int(s["max_pages_per_search"])
         # rests after each push-back, in minutes; once they run out the step stops (Blocked)
-        self.block_rests = [float(m) * 60 for m in s.get("block_rests_minutes", [5, 10, 20])]
+        # LINKEDIN_BLOCK_RESTS_MINUTES="5,10" (set on GitHub) gives up sooner: there a block
+        # outlasts any rest, so waiting out all eight only burns machine time
+        rests = os.environ.get("LINKEDIN_BLOCK_RESTS_MINUTES")
+        rests = [m for m in rests.split(",") if m.strip()] if rests else s.get("block_rests_minutes", [5, 10, 20])
+        self.block_rests = [float(m) * 60 for m in rests]
         self.slow_for = int(s.get("slow_after_block_requests", 100))
         self.slow_left = 0
         self.rest_every = int(s.get("rest_every_requests", 0))

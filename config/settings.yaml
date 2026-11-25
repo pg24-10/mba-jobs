@@ -54,6 +54,10 @@ linkedin:
 # Lever asks for at least 1 second between requests.
 ats:
   delay_seconds: 1.0
+  # Workday turned most boards away (429) on the first request when read from GitHub,
+  # so a longer gap there, and on a 429 wait (Retry-After if given, else these) and retry
+  workday_delay_seconds: 5.0
+  retry_429_seconds: [30, 90]
   # Workday / Oracle: pages of 20-25 jobs read per company per run (newest first for Oracle)
   max_pages_big_boards: 25
   # Company careers sites read through their sitemap + Google Jobs tags (careers_site.py)

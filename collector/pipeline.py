@@ -187,6 +187,11 @@ def collect_linkedin(db, groups, locations, since, log, details=True, flush=None
             e.partial, e.next_step = out, idx
             log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs; "
                 f"stopped at step {idx + 1} of {len(steps)}")
+            if idx == order[0] and not isinstance(e, TimeUp) and len(order) > 1:
+                # blocked before finishing even the first step: starting there again
+                # tomorrow would jam this machine on one search forever, so move on
+                e.next_step = idx + 1
+                log(f"  linkedin: step {idx + 1} never finished; the next run starts after it")
             raise
         emit(raws)
     log(f"  linkedin: {li.requests} requests, {li.blocks} push-backs")
@@ -409,14 +414,20 @@ def collect_ats(db, since, log):
     companies = db.select("companies", {"select": "name,ats_type,ats_token",
                                         "ats_type": "not.in.(none)", "ats_token": "not.is.null"})
     client = ats_source.ATS(log=log)
-    raws = []
+    raws, refused = [], []
     for c in companies:
         try:
             raws += client.fetch(c["name"], c["ats_type"], c["ats_token"], since)
         except Exception as e:               # one board failing never stops the rest
             log(f"  ats {c['name']}: {e}")
+            if "429" in str(e):
+                refused.append(c["name"])
     log(f"  ats: {len(companies)} boards, {len(raws)} India jobs in window")
+    ATS_REFUSED[:] = [len(companies)] + refused        # for the run summary
     return raws
+
+
+ATS_REFUSED = []        # [boards read, then the names that still said 429 after retrying]
 
 
 def learn_boards(db, raws, log, check_sites=True):
@@ -531,6 +542,11 @@ def run(db, sources, groups=None, locations=None, days=None, since=None, isb=Non
                 else:
                     raws = collect(db, source, groups, locations, start, log, linkedin_details)
                 s["status"] = "partial" if shard else "success"
+                if source == "ats" and len(ATS_REFUSED) > 1:
+                    names = ATS_REFUSED[1:]
+                    s["error"] = (f"blocked: {len(names)} of {ATS_REFUSED[0]} boards still said 'too many "
+                                  f"requests' (429) after retrying: {', '.join(names[:8])}"
+                                  + (" ..." if len(names) > 8 else ""))
             except Blocked as e:                 # save what was finished; the rest waits
                 raws = e.partial
                 stop = getattr(e, "next_step", None)
