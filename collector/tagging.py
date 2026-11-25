@@ -87,6 +87,54 @@ def thin(description):
     return len((description or "").split()) < THIN_WORDS
 
 
+# ---- discriminatory posts: gender-only, age caps, marital status ----
+# Such posts are hidden (too_thin, so the site never shows them) and never tagged;
+# tag_skipped says why. Kept rather than deleted so collection doesn't add them back.
+
+_G = r"(?:male|female|females|women|woman|men|ladies|lady|girls?|boys?|gents)"
+_BOTH = r"(?!\s*(?:/|or|&|and|,)\s*" + _G + r")"
+_NOT_PERK = r"(?<!for )(?<!for\s)"                  # "cab for women only" is a perk, not a rule
+_BIAS = {
+    "gender": re.compile(
+        r"\b(?:only|strictly|exclusively)\s+(?:for\s+)?" + _G + r"\b" + _BOTH +
+        r"|" + _NOT_PERK + r"\b" + _G + r"\s+(?:candidates?|applicants?|staff|employees?|executives?|recruiters?)?\s*"
+        r"(?:only|preferred|preferably|required|needed|wanted)\b(?!\s+(?:morning|night|day|rotational)?\s*shift)" +
+        r"|\bprefer(?:ably|red|ence)?\s*(?:to|for|:|-)?\s*(?:a\s+)?" + _G + r"\b" + _BOTH +
+        r"|\bfirst preference for " + _G + r"\b" +
+        r"|\bgender\s*(?::|-|–)\s*(?:only\s+(?:for\s+)?)?(?:male|female)\b" + _BOTH, re.I),
+    "age": re.compile(
+        r"\bage[ds]?\b[^.\n]{0,25}?\b[1-6]\d\s*(?:-|–|to)\s*[1-6]\d\b"
+        r"|\bage\b[^.\n]{0,25}?\b(?:below|under|upto|up to|max(?:imum)?|less than|not more than|within)\s*:?\s*[1-6]\d\b"
+        r"|\b(?:below|under|upto|up to|not (?:more|older) than|less than)\s+[1-6]\d\s*(?:years|yrs)\s+(?:of\s+)?(?:age|old)\b"
+        r"|\baged\s+[1-6]\d\s*(?:years|yrs)?\s+or\s+(?:below|under|less|younger)\b"
+        r"|\bmax(?:imum)?\s+age\b", re.I),
+    "marital status": re.compile(
+        r"\bunmarried\b|\bmarital status\s*(?::|-)\s*(?:single|married|unmarried)"
+        r"|\b(?:married|single)\s+(?:candidates?|applicants?|women|men|females?|males?)\s+(?:only|preferred)", re.I),
+}
+_DIVERSITY = re.compile(r"diversity|equal opportunit|women (?:returners?|returning)|career break", re.I)
+
+
+def biased(text):
+    """Why this post discriminates (gender / age / marital status), or None."""
+    text = text or ""
+    why = []
+    for name, pat in _BIAS.items():
+        for m in pat.finditer(text):
+            if name == "gender" and _DIVERSITY.search(text[max(0, m.start() - 40):m.end() + 40]):
+                continue                          # diversity hiring drives, women-returner programmes
+            why.append(name)
+            break
+    return ", ".join(why) or None
+
+
+def mark_biased(db, found):
+    """found: [(job id, reason)]. Hidden from the site and out of the tagging queue."""
+    for i, why in found:
+        db._send("PATCH", f"{db.base}/jobs", params={"id": f"eq.{i}"}, timeout=60,
+                 data=json.dumps({"too_thin": True, "tag_skipped": f"discriminatory: {why}"}))
+
+
 def mark_thin(db, ids):
     """Flag these jobs too_thin: never tagged, never shown on the site."""
     for i in range(0, len(ids), 200):
@@ -157,11 +205,16 @@ _NUM = r"(\d{1,2}(?:\.\d)?)"
 _YEARS = re.compile(_NUM + r"\s*(?:\+\s*)?(?:(?:-|–|to)\s*" + _NUM + r"\s*\+?\s*)?(?:years?|yrs?)\b", re.I)
 _MASTERS = re.compile(r"\bmaster'?s?\b|\bm\.?\s?b\.?\s?a\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bm\.?\s?tech\b|"
                       r"\bm\.?\s?sc\b|\bm\.?\s?com\b|\bpost[- ]?graduat", re.I)
-_MBA = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bpost[- ]?graduat|business school|b-school|\bmms\b|"
+# Wide net: any post this misses is saved as "not mentioned" without Claude looking.
+_MBA = re.compile(r"\bm\.?\s?b\.?\s?a\.?(?:s|'s)?\b|\bpgdm|\bpgdba\b|\bpgdbm\b|\bpgp\w*|\bpost[- ]?grad|"
+                  r"business school|\bb[- ]?school|\bmms\b|\biim\b|\bisb\b|\bxlri\b|"
+                  r"\bmanagement\s+(?:degree|graduate|qualification|post[- ]?graduat)|"
+                  r"\bpg\b[^.\n]{0,40}\b(?:business|management)\b|"
                   r"\bmaster'?s?\b[^.\n]{0,40}\b(?:business|management)\b", re.I)
 
 
-_MBA_STRICT = re.compile(r"\bmba\b|\bpgdm\b|\bpgdba\b|\bpgp\b|\bmms\b|business school|b-school|"
+_MBA_STRICT = re.compile(r"\bm\.?\s?b\.?\s?a\.?(?:s|'s)?\b|\bpgdms?\b|\bpgdba\b|\bpgdbm\b|\bpgp(?:m|x)?\b|\bmms\b|"
+                         r"business school|\bb[- ]?school|"
                          r"master'?s?'?\s+(?:degree\s+)?(?:of|in)\s+business administration", re.I)
 _MUST = re.compile(r"mandatory|must|required|essential|compulsory|only", re.I)
 _SOFT = re.compile(r"prefer|plus|advantage|desirable|added|not mandatory|nice to have|or equivalent|good to have", re.I)
@@ -251,6 +304,7 @@ def save_copies(db, pairs, model, now):
 
 def export(db, limit=50, path=BATCH, log=print):
     """Write the next `limit` jobs to tag. On the way:
+    - discriminatory posts (gender, age, marital status) are hidden and never tagged;
     - jobs whose description is too short are flagged too_thin;
     - jobs with the same company + title as one already tagged get its tags now;
     - titles almost surely fit 1-2 are marked tag_skipped;
@@ -269,17 +323,20 @@ def export(db, limit=50, path=BATCH, log=print):
     model = title_model(done)
 
     rows, dupes, reps, offset = [], {}, {}, 0
-    n_thin = n_skip = n_dupe = 0
+    n_thin = n_skip = n_dupe = n_bias = 0
     reuse = []                                    # (job row, id of the tagged job to copy)
     while len(rows) < limit:                      # the database hands out at most 1,000 rows a time
         page = db._send("GET", f"{db.base}/jobs", timeout=60, params=params,
                         headers={"Range": f"{offset}-{offset + 999}"})
-        thin_ids, skip_ids = [], []
+        thin_ids, skip_ids, bias = [], [], []
         for r in page:
             if len(rows) >= limit:
                 break
             key = _same_key(r)
-            if thin(r["description_trimmed"]):
+            why = biased(r["description_trimmed"])
+            if why:
+                bias.append((r["id"], why))
+            elif thin(r["description_trimmed"]):
                 thin_ids.append(r["id"])
             elif key in tagged_as:
                 reuse.append((r, tagged_as[key]))
@@ -292,7 +349,10 @@ def export(db, limit=50, path=BATCH, log=print):
                 reps[key] = r["id"]
                 rows.append(r)
         # flagged, skipped and copied rows drop out of the queue; the rest stay in it
-        offset += len(page) - len(thin_ids) - len(skip_ids)
+        offset += len(page) - len(thin_ids) - len(skip_ids) - len(bias)
+        if bias:
+            mark_biased(db, bias)
+            n_bias += len(bias)
         if thin_ids:
             mark_thin(db, thin_ids)
             n_thin += len(thin_ids)
@@ -308,6 +368,8 @@ def export(db, limit=50, path=BATCH, log=print):
                                                       "select": "id," + ",".join(TAG_COLS)})})
         save_copies(db, [(r["id"], _copy_row(src[s], _own(r))) for r, s in reuse if s in src],
                     MODEL + "-copy", datetime.now(timezone.utc).isoformat())
+    if n_bias:
+        log(f"hid {n_bias} discriminatory posts (gender, age or marital-status rules; tag_skipped says which)")
     if n_thin:
         log(f"left out {n_thin} jobs with under {THIN_WORDS} words of description (flagged too_thin)")
     if n_skip:
@@ -413,9 +475,17 @@ def _years(v):
 
 def check(tag, job, tags):
     """The row to save for one tag, or the reason it can't be saved."""
-    tag = {**tag, **(job.get("already_known") or {})}  # what the code decided wins
+    known = dict(job.get("already_known") or {})
+    named_mba = bool(_MBA_STRICT.search(job.get("description") or ""))
+    if known.get("mba_requirement") == "not mentioned" and named_mba:
+        known.pop("mba_requirement")                        # export missed the wording (older batch file)
+        if tag.get("mba_requirement") in (None, "not mentioned"):
+            tag["mba_requirement"] = mba_from_post(job.get("description"))
+    tag = {**tag, **known}                                  # what the code decided wins
     if tag.get("mba_requirement") is None:                  # left out by mistake: the code reads it
         tag["mba_requirement"] = mba_from_post(job.get("description"))
+    if tag["mba_requirement"] in ASKS_MBA and named_mba and "mba" not in (tag.get("background_wanted") or []):
+        tag["background_wanted"] = [*(tag.get("background_wanted") or []), "mba"]
     for field in ("function", "seniority", "industry", "company_type"):
         if tag.get(field) not in tags[field]:
             return f"{field} {tag.get(field)!r} is not in tags.yaml"
