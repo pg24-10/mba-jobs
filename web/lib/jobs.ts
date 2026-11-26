@@ -170,6 +170,7 @@ export type F = {
   sen: string[];
   mba: string[];
   src: string[];
+  expmin: number; // 0 = any; else jobs open to someone with at least this many years
   exp: number; // 0 = any; else jobs asking at most this many years
   bg: string[];
   ind: string[];
@@ -177,11 +178,22 @@ export type F = {
   stage: string[];
   jt: string; // "" | full | contract
   pay: number; // 0 = any; else pays at least this many LPA
+  paymax: number; // 0 = any; else pays from at most this many LPA
   own: boolean; // apply on the company's own site
   noagency: boolean;
   norepost: boolean;
   sort: string;
   view: "jobs" | "saved" | "applied";
+};
+
+/* Pay and experience sliders. Below PAY_FLOOR a job is never shown; the top of each slider means "or more". */
+export const PAY_FLOOR = 10;
+export const PAY_TOP = 100;
+export const EXP_TOP = 20;
+/** A slider end read from the address: 0 when missing, or sitting on the slider's own ends. */
+const num0 = (v: string | null, lo: number, hi: number) => {
+  const n = Math.round(Number(v ?? 0) || 0);
+  return n <= lo || n >= hi ? 0 : n;
 };
 
 export function readF(p: URLSearchParams): F {
@@ -200,13 +212,15 @@ export function readF(p: URLSearchParams): F {
     sen: list("sen"),
     mba: list("mba"),
     src: list("src"),
-    exp: Number(p.get("exp") ?? 0) || 0,
+    expmin: num0(p.get("expmin"), 0, EXP_TOP),
+    exp: num0(p.get("exp"), 0, EXP_TOP),
     bg: list("bg"),
     ind: list("ind"),
     ct: list("ct"),
     stage: list("stage"),
     jt: ["full", "contract"].includes(p.get("jt") ?? "") ? p.get("jt")! : "",
-    pay: Number(p.get("pay") ?? 0) || 0,
+    pay: num0(p.get("pay"), PAY_FLOOR, PAY_TOP),
+    paymax: num0(p.get("paymax"), PAY_FLOOR, PAY_TOP),
     own: p.get("own") === "1",
     noagency: p.get("noagency") === "1",
     norepost: p.get("norepost") === "1",
@@ -228,10 +242,12 @@ export function writeF(f: F): string {
   if (f.sen.length) p.set("sen", f.sen.join(","));
   if (f.mba.length) p.set("mba", f.mba.join(","));
   if (f.src.length) p.set("src", f.src.join(","));
+  if (f.expmin) p.set("expmin", String(f.expmin));
   if (f.exp) p.set("exp", String(f.exp));
   for (const k of ["bg", "ind", "ct", "stage"] as const) if (f[k].length) p.set(k, f[k].join(","));
   if (f.jt) p.set("jt", f.jt);
   if (f.pay) p.set("pay", String(f.pay));
+  if (f.paymax) p.set("paymax", String(f.paymax));
   if (f.own) p.set("own", "1");
   if (f.noagency) p.set("noagency", "1");
   if (f.norepost) p.set("norepost", "1");
@@ -257,17 +273,24 @@ export function activeChips(f: F): [keyof F | string, string][] {
   f.sen.forEach((s) => a.push(["sen:" + s, SENIORITY.find((x) => x[0] === s)?.[1] ?? s]));
   f.mba.forEach((s) => a.push(["mba:" + s, MBA.find((x) => x[0] === s)?.[1] ?? s]));
   f.src.forEach((s) => a.push(["src:" + s, SOURCES.find((x) => x[0] === s)?.[1] ?? s]));
-  if (f.exp) a.push(["exp", `Asks ≤ ${f.exp} yrs`]);
+  if (f.expmin || f.exp) a.push(["exp", rangeLabel(f.expmin, f.exp, "yrs")]);
   const lists: [keyof F & ("bg" | "ind" | "ct" | "stage"), [string, string][]][] = [
     ["bg", BACKGROUNDS], ["ind", INDUSTRIES], ["ct", COMPANY_TYPES], ["stage", STAGES],
   ];
   for (const [k, opts] of lists) f[k].forEach((s) => a.push([k + ":" + s, opts.find((x) => x[0] === s)?.[1] ?? s]));
   if (f.jt) a.push(["jt", f.jt === "full" ? "Full-time" : "Contract"]);
-  if (f.pay) a.push(["pay", `Pays ${f.pay}+ LPA`]);
+  if (f.pay || f.paymax) a.push(["pay", "Pays " + rangeLabel(f.pay, f.paymax, "LPA")]);
   if (f.own) a.push(["own", "Apply on company site"]);
   if (f.noagency) a.push(["noagency", "No agencies"]);
   if (f.norepost) a.push(["norepost", "No reposts"]);
   return a;
+}
+
+/** "3–8 yrs", "3+ yrs", "Up to 8 yrs" for a slider's two ends (0 = open). */
+export function rangeLabel(lo: number, hi: number, unit: string): string {
+  if (lo && hi) return `${lo}–${hi} ${unit}`;
+  if (lo) return `${lo}+ ${unit}`;
+  return `Up to ${hi} ${unit}`;
 }
 
 export function removeChip(f: F, key: string): F {
@@ -278,7 +301,9 @@ export function removeChip(f: F, key: string): F {
     n[kk] = f[kk].filter((x) => x !== v);
   } else if (k === "fit") n.fit = 3;
   else if (k === "q" || k === "fn" || k === "jt") n[k] = "";
-  else if (k === "days" || k === "exp" || k === "pay") n[k] = 0;
+  else if (k === "days") n.days = 0;
+  else if (k === "exp") { n.exp = 0; n.expmin = 0; }
+  else if (k === "pay") { n.pay = 0; n.paymax = 0; }
   else (n as Record<string, unknown>)[k] = false;
   return n;
 }
@@ -291,6 +316,8 @@ const clean = (s: string) => s.replace(/[^\p{L}\p{N}\s&+\-/.]/gu, " ").replace(/
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function applyFilters(q: any, f: F, opts: { hidden: number[]; skipFn?: boolean }) {
   q = q.not("tagged_at", "is", null).eq("is_stale", false);
+  // Never show roles that pay under 10 LPA. Roles that don't state pay stay.
+  q = q.or(`salary_max_lpa.is.null,salary_max_lpa.gte.${PAY_FLOOR}`);
   if (f.fit > 1) q = q.gte("fit_score", f.fit);
   if (f.fn && !opts.skipFn) q = q.eq("function", f.fn);
   if (f.isb) q = q.eq("past_isb_recruiter", true);
@@ -301,7 +328,9 @@ export function applyFilters(q: any, f: F, opts: { hidden: number[]; skipFn?: bo
   if (f.sen.length) q = q.in("seniority", f.sen);
   if (f.mba.length) q = q.in("mba_requirement", f.mba);
   if (f.src.length) q = q.overlaps("sources", f.src);
+  // Experience: keep roles whose asked-for range overlaps the slider's. Unstated stays in.
   if (f.exp) q = q.or(`experience_min.is.null,experience_min.lte.${f.exp}`);
+  if (f.expmin) q = q.or(`experience_max.is.null,experience_max.gte.${f.expmin}`);
   if (f.noagency) q = q.eq("is_agency", false);
   if (f.norepost) q = q.eq("is_repost", false);
   if (f.bg.length) q = q.overlaps("background_wanted", f.bg);
@@ -310,7 +339,9 @@ export function applyFilters(q: any, f: F, opts: { hidden: number[]; skipFn?: bo
   if (f.stage.length) q = q.in("startup_stage", f.stage);
   if (f.jt === "full") q = q.ilike("employment_type", "%full%");
   if (f.jt === "contract") q = q.ilike("employment_type", "%contract%");
+  // Pay: the role's range must reach the slider's range. Roles without pay drop out once it is set.
   if (f.pay) q = q.gte("salary_max_lpa", f.pay);
+  if (f.paymax) q = q.lte("salary_min_lpa", f.paymax);
   if (f.own) q = q.eq("apply_on_company_site", true);
   const s = clean(f.q);
   if (s) q = q.or(`title.ilike.*${s}*,company.ilike.*${s}*`);

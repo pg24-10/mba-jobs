@@ -18,3 +18,5 @@ data/state/
 data/logs/
 data/reports/
 data/inbox/*.json
+
+.claude/settings.local.json

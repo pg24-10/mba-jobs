@@ -1088,7 +1088,11 @@ function Sheet({
           </div>
           <div className="grp">
             <h3>Experience they ask for</h3>
-            {one(f.exp, [[0, "Any"], [2, "Up to 2 yrs"], [5, "Up to 5 yrs"], [8, "Up to 8 yrs"], [12, "Up to 12 yrs"]], (v) => change({ exp: v }))}
+            <Range
+              min={0} max={L.EXP_TOP} step={1} unit="yrs" label="Experience"
+              lo={f.expmin} hi={f.exp}
+              set={(expmin, exp) => change({ expmin, exp })}
+            />
           </div>
           <div className="grp">
             <h3>MBA</h3>
@@ -1112,7 +1116,12 @@ function Sheet({
           </div>
           <div className="grp">
             <h3>Pay</h3>
-            {one(f.pay, [[0, "Any"], [10, "10+ LPA"], [20, "20+ LPA"], [30, "30+ LPA"], [50, "50+ LPA"]], (v) => change({ pay: v }))}
+            <p>Roles under {L.PAY_FLOOR} LPA are never shown.</p>
+            <Range
+              min={L.PAY_FLOOR} max={L.PAY_TOP} step={1} unit="LPA" label="Pay"
+              lo={f.pay} hi={f.paymax}
+              set={(pay, paymax) => change({ pay, paymax })}
+            />
             <div className="opts" style={{ marginTop: 6 }}>{flag("sal", "Salary shown")}</div>
           </div>
           <div className="grp">
@@ -1149,6 +1158,54 @@ function Sheet({
         </div>
       </div>
     </>
+  );
+}
+
+/** A two-handled slider. 0 means "open" at either end; the list updates once dragging pauses. */
+function Range({
+  min, max, step, unit, label, lo, hi, set,
+}: {
+  min: number; max: number; step: number; unit: string; label: string;
+  lo: number; hi: number; set: (lo: number, hi: number) => void;
+}) {
+  const [a, setA] = useState(lo || min);
+  const [b, setB] = useState(hi || max);
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Follow outside changes (Clear all, removing a chip).
+  const [seen, setSeen] = useState([lo, hi]);
+  if (seen[0] !== lo || seen[1] !== hi) {
+    setSeen([lo, hi]);
+    setA(lo || min);
+    setB(hi || max);
+  }
+  useEffect(() => () => { if (t.current) clearTimeout(t.current); }, []);
+  const move = (na: number, nb: number) => {
+    setA(na);
+    setB(nb);
+    if (t.current) clearTimeout(t.current);
+    t.current = setTimeout(() => set(na <= min ? 0 : na, nb >= max ? 0 : nb), 300);
+  };
+  const pct = (v: number) => ((v - min) / (max - min)) * 100;
+  const text =
+    a <= min && b >= max ? "Any" : b >= max ? `${a}+ ${unit}` : `${a}–${b} ${unit}`;
+  return (
+    <div className="rng">
+      <div className="rng-v" aria-live="polite">{text}</div>
+      <div className="rng-t" style={{ "--a": pct(a) + "%", "--b": pct(b) + "%" } as React.CSSProperties}>
+        <input
+          type="range" min={min} max={max} step={step} value={a} aria-label={`${label}, lowest`}
+          style={{ zIndex: a > (min + max) / 2 ? 2 : 1 }}
+          aria-valuetext={`${a} ${unit}`}
+          onChange={(e) => move(Math.min(Number(e.target.value), b), b)}
+        />
+        <input
+          type="range" min={min} max={max} step={step} value={b} aria-label={`${label}, highest`}
+          aria-valuetext={b >= max ? `${max}+ ${unit}` : `${b} ${unit}`}
+          onChange={(e) => move(a, Math.max(Number(e.target.value), a))}
+        />
+      </div>
+      <div className="rng-e"><span>{min} {unit}</span><span>{max}+ {unit}</span></div>
+    </div>
   );
 }
 
