@@ -293,9 +293,13 @@ def test_biased_reads_titles_and_plurals():
     assert biased("Strong Excel skills. Males only.", "HR & Admin Manager") == "gender"
     assert biased("", "Driver - Males only") == "gender"
     assert biased("Female candidates preferred") == "gender"
+    assert biased("We are looking for male candidates only.") == "gender"
+    assert biased("Hiring for females only, Mumbai office.") == "gender"
     # both genders, perks and diversity drives are fine
     assert biased("", "Sales Executive (Male/Female)") is None
     assert biased("Open to male or female candidates.", "Analyst") is None
     assert biased("Cab facility for women only.", "Analyst") is None
+    assert biased("Pick-up and drop for women only after 9 pm.") is None
+    assert biased("Separate hostel for women only.") is None
     assert biased("A diversity hiring drive: women candidates preferred.", "Analyst") is None
     assert biased("We make products for men and women.", "Brand Manager - Men's Grooming") is None

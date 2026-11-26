@@ -93,7 +93,10 @@ def thin(description):
 
 _G = r"(?:males?|females?|women|woman|men|ladies|lady|girls?|boys?|gents|gentlemen)"
 _BOTH = r"(?!\s*(?:/|or|&|and|,)\s*" + _G + r")"
-_NOT_PERK = r"(?<!for )(?<!for\s)"                  # "cab for women only" is a perk, not a rule
+# "cab for women only" is a perk, not a rule; "looking for male candidates only" is a rule
+_PERKS = ("cab", "cabs", "transport", "transportation", "drop", "pickup", "pick-up", "facility",
+          "facilities", "hostel", "hostels", "accommodation", "washroom", "washrooms", "restroom")
+_NOT_PERK = "".join(rf"(?<!{re.escape(w)} for )" for w in _PERKS)
 _BIAS = {
     "gender": re.compile(
         r"\b(?:only|strictly|exclusively)\s+(?:for\s+)?" + _G + r"\b" + _BOTH +
